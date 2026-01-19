@@ -141,6 +141,15 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         TARGET ${PROJECT_NAME}.kxe
         COMMAND ${PROJECT_SOURCE_DIR}/tools/KuriboConverter.exe ARGS ${PROJECT_NAME} ${PROJECT_NAME}.kxe ${PROJECT_SOURCE_DIR}/maps/${SMS_REGION}.map
     )
+    add_custom_command(
+        TARGET ${PROJECT_NAME}.kxe
+        COMMAND ${PROJECT_SOURCE_DIR}/tools/KuriboConverter.exe ARGS ${PROJECT_NAME} "G:/Projects/Mario_sunshine/speedrunning/mario sunshine/iso/eclipse 1.0.6/root/files/Kuribo!/Mods/${PROJECT_NAME}.kxe" ${PROJECT_SOURCE_DIR}/maps/${SMS_REGION}.map
+    )
+
+    add_custom_command(
+        TARGET ${PROJECT_NAME}.kxe
+        COMMAND "C:/Program Files/Dolphin/Dolphin.exe" ARGS --logger --debugger --exec "G:/Projects/Mario_sunshine/speedrunning/mario sunshine/iso/eclipse 1.0.6/root/sys/main.dol"
+    )
 endif()
 
 unset(SMS_FIX_DOWNWARP CACHE)

@@ -122,7 +122,6 @@ static inline bool isColTypeWater(u16 type) { return (type > 255 && type < 261) 
 // extern -> generic.cpp
 BETTER_SMS_FOR_CALLBACK void updateCollisionContext(TMario *player, bool isMario) {
     constexpr s16 CrushTimeToDie = 0;
-
     Player::TPlayerData *playerData = Player::getData(player);
 
     resetValuesOnStateChange(player);

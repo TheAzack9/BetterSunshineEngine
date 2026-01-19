@@ -54,7 +54,8 @@ template <typename _I, typename _C> struct PhysicsMetaInfo {
 
 #define MAX_CALLBACKS 128
 
-static MarioDataPair sPlayerDatas[8];
+#define MAX_PLAYER_DATAS 16
+static MarioDataPair sPlayerDatas[MAX_PLAYER_DATAS];
 
 static Player::InitCallback sPlayerInitializers[128];
 static size_t sPlayerInitializersSize = 0;
@@ -74,7 +75,7 @@ static size_t sPlayerCollisionHandlersSize = 0;
 BETTER_SMS_FOR_EXPORT Player::TPlayerData *BetterSMS::Player::getData(TMario *player) {
     TPlayerData *data = nullptr;
 
-    for (size_t i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < MAX_PLAYER_DATAS; ++i) {
         if (sPlayerDatas[i].mPlayer != player) {
             continue;
         }
@@ -98,7 +99,7 @@ AfterSearch:
 BETTER_SMS_FOR_EXPORT void *BetterSMS::Player::getRegisteredData(TMario *player, const char *key) {
     TPlayerData *data = nullptr;
 
-    for (size_t i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < MAX_PLAYER_DATAS; ++i) {
         if (sPlayerDatas[i].mPlayer != player) {
             continue;
         }
@@ -121,7 +122,7 @@ AfterSearch:
 // Register arbitrary module data for a player
 BETTER_SMS_FOR_EXPORT bool BetterSMS::Player::registerData(TMario *player, const char *key,
                                                            void *data) {
-    for (size_t i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < MAX_PLAYER_DATAS; ++i) {
         if (sPlayerDatas[i].mPlayer == player) {
             for (const MarioData &item : sPlayerDatas[i].mData) {
                 if (strcmp(item.mKey, key) == 0) {
@@ -138,11 +139,12 @@ BETTER_SMS_FOR_EXPORT bool BetterSMS::Player::registerData(TMario *player, const
             return true;
         }
     }
+    OSPanic(__FILE__, __LINE__, "[ERROR] BetterSunshineEngine is out of playerData slots when trying to register more!\n");
     return false;
 }
 
 BETTER_SMS_FOR_EXPORT void BetterSMS::Player::deregisterData(TMario *player, const char *key) {
-    for (size_t i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < MAX_PLAYER_DATAS; ++i) {
         if (sPlayerDatas[i].mPlayer != player) {
             continue;
         }
@@ -846,7 +848,7 @@ BETTER_SMS_FOR_CALLBACK void initMario(TMario *player, bool isMario) {
 }
 
 BETTER_SMS_FOR_CALLBACK void resetPlayerDatas(TMarDirector *application) {
-    for (size_t i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < MAX_PLAYER_DATAS; ++i) {
         sPlayerDatas[i].mPlayer = nullptr;
         sPlayerDatas[i].mData.clear();
     }

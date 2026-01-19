@@ -383,6 +383,7 @@ static void initLib() {
 
     // PATCHES
     Stage::addInitCallback(patches_staticResetter);
+
 }
 
 static void destroyLib() {}
