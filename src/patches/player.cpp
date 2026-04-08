@@ -44,7 +44,7 @@ void checkForForceDropOnDeadActor(TMario *player, bool isMario) {
         return;
     }
 #else
-    if ((carried->mObjectID & 0x18000000))
+    if ((carried->mObjectID & 0x18000000) || (carried->mObjectID & OBJECT_ID_MARIO))
         return;
 
     if ((carried->mStateFlags.asU32 & 1) != 0) {

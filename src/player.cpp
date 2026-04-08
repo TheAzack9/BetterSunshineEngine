@@ -54,7 +54,7 @@ template <typename _I, typename _C> struct PhysicsMetaInfo {
 
 #define MAX_CALLBACKS 128
 
-#define MAX_PLAYER_DATAS 16
+#define MAX_PLAYER_DATAS 24
 static MarioDataPair sPlayerDatas[MAX_PLAYER_DATAS];
 
 static Player::InitCallback sPlayerInitializers[128];
