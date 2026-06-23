@@ -114,10 +114,10 @@ static void getJointCoinAnmFrameRateCharacter(J3DFrameCtrl *frameCtrl) {
         scalar = 2.0f;
         break;
     case FPSSetting::FPS_60:
-        scalar = 1.65f;
+        scalar = 1.666666666666f;
         break;
     case FPSSetting::FPS_120:
-        scalar = 1.3f;
+        scalar = 1.333333333333f;
         break;
     }
     frameCtrl->mFrameRate = scalar * 0.25f;
