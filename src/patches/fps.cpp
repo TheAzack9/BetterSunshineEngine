@@ -373,7 +373,29 @@ HX_PATCH_TIMER(SMS_PORT_REGION(0x8017E544, 0, 0, 0), adjustHXTimerTest4_State0, 
 // ----------- //
 
 // -- TEST5 -- //
-HX_PATCH_TIMER(SMS_PORT_REGION(0x8017E07C, 0, 0, 0), adjustHXTimerTest5_State0, 0x26);
+static u8 sHXTimer5Alternator = 0;
+
+static u8 getHxTimerTest5AlternatorRate() {
+    switch (gFPSSetting.getInt()) {
+    case FPSSetting::FPS_30:
+        return 1;
+    case FPSSetting::FPS_60:
+        return 2;
+    case FPSSetting::FPS_120:
+        return 4;
+    }
+    return 1;
+}
+
+static int Hx_TimerCountDown_HXTimerTest5() {
+    sHXTimer5Alternator = (sHXTimer5Alternator + 1) % getHxTimerTest5AlternatorRate();
+    if(sHXTimer5Alternator == 0) {
+        *(int *)SMS_PORT_REGION(0x803F43FC, 0, 0, 0) -= 1;
+    }
+
+    return *(int *)SMS_PORT_REGION(0x803F43FC, 0, 0, 0);
+}
+SMS_PATCH_BL(SMS_PORT_REGION(0x8017e3e8, 0, 0, 0), Hx_TimerCountDown_HXTimerTest5);
 // ----------- //
 
 // HX_MotionUpdate
