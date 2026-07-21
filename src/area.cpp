@@ -1,4 +1,5 @@
 #include <JGadget/UnorderedMap.hxx>
+#include <JSystem/JKernel/JKRDvdRipper.hxx>
 #include <SMS/GC2D/SelectMenu.hxx>
 #include <SMS/Manager/FlagManager.hxx>
 #include <SMS/raw_fn.hxx>
@@ -98,6 +99,18 @@ BETTER_SMS_FOR_CALLBACK void initAreaInfo() {
         for (int i = 0; i < 32; ++i) {
             registerExStage(i + 0x15, baseGameStageTable[i + 0x15],
                             baseGameExShineTable2[i] != 0xFF ? baseGameExShineTable2[i] : -1);
+        }
+
+        // Load custom stages dynamically
+        void* customStagesBin = JKRDvdRipper::loadToMainRAM("/data/customStages.bin", 0x0, NOP, 0, JKRHeap::sRootHeap, JKRDvdRipper::HEAD, 0, 0);
+        if(customStagesBin != nullptr) {
+            int size = JKRHeap::sRootHeap->getSize(customStagesBin);
+            JSUMemoryInputStream memStream(customStagesBin, size);
+            LevelNameRefGen data;
+            JDrama::TNameRefGen::instance = &data;
+            data.load(memStream);
+        } else {
+            OSReport("[WARN] Could not find customStages.bin, will not add any custom stages.\n");
         }
 
         oldHeap->becomeCurrentHeap();
@@ -413,3 +426,60 @@ static void moveStage_override(TMarDirector *director) {
     *(u32 *)((u8 *)director + 0xE4) = 8;
     director->mNextState            = 8;
 }
+
+JDrama::TNameRef *LevelNameRefGen::getNameRef(const char *name) const
+{
+	if(strcmp("CustomStage", name) == 0) {
+        CustomStage* stage = new CustomStage(name);
+        return stage;
+    }
+    else if(strcmp("CustomScenario", name) == 0) {
+        return new CustomScenario(name);
+    }
+    return JDrama::TNameRefGen::getNameRef(name);
+}
+
+CustomScenario::CustomScenario(const char *name) : JDrama::TNameRef(name) {}
+
+void CustomScenario::load(JSUMemoryInputStream &stream) {
+    JDrama::TNameRef::load(stream);
+    int type = 0;
+    stream.readData(&type, sizeof(int));
+    int stageId = 0;
+    stream.readData(&stageId, sizeof(int));
+    int scenarioId = 0;
+    stream.readData(&scenarioId, sizeof(int));
+    int scenarioNameId = 0;
+    stream.readData(&scenarioNameId, sizeof(int));
+
+    if(sShineAreaInfos[stageId] == nullptr) {
+        OSReport("[ERROR] Tried to add Scenario to invalid stage!");
+        return;
+    }
+
+    OSReport("[INFO] Loading CustomScenario info %d %d %d %d \n", type, stageId, scenarioId, scenarioNameId);
+
+    if(type == 0) {
+        sShineAreaInfos[stageId]->addScenario(scenarioId, scenarioNameId);
+    } else if(type == 1) {
+        sShineAreaInfos[stageId]->addExScenario(scenarioId, scenarioNameId);
+        Stage::registerExStage(stageId, sShineAreaInfos[stageId]->getShineStageID(), scenarioId);
+    }
+};
+
+CustomStage::CustomStage(const char *name) : JDrama::TNameRef(name) {}
+
+void CustomStage::load(JSUMemoryInputStream &stream) {
+    JDrama::TNameRef::load(stream);
+    int stageId = 0;
+    stream.readData(&stageId, sizeof(int));
+    int shineSelectPaneId = 0;
+    stream.readData(&shineSelectPaneId, sizeof(int));
+
+    OSReport("[INFO] Loading CustomStage info %d %d \n", stageId, shineSelectPaneId);
+
+    Stage::ShineAreaInfo *info = new Stage::ShineAreaInfo(stageId);
+    Stage::registerShineStage(info);
+    Stage::registerNormalStage(stageId, info->getShineStageID());
+    sShineAreaInfos[stageId] = info;
+};
