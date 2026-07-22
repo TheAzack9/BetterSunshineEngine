@@ -85,7 +85,8 @@ BETTER_SMS_FOR_CALLBACK void initAreaInfo() {
                 // First and last entries always unused
                 for (int j = 0; j < getExScenariosForScene(i); ++j) {
                     u8 scenarioID = baseGameExShineTable[info->getShineStageID()][j];
-                    info->addExScenario(scenarioID, j > 0 ? baseGameScenarioNameTable[scenarioID] : -1);
+                    info->addExScenario(scenarioID,
+                                        j > 0 ? baseGameScenarioNameTable[scenarioID] : -1);
                 }
             }
 
@@ -101,11 +102,12 @@ BETTER_SMS_FOR_CALLBACK void initAreaInfo() {
                             baseGameExShineTable2[i] != 0xFF ? baseGameExShineTable2[i] : -1);
         }
 
-        // Load custom stages dynamically
-        void* customStagesBin = JKRDvdRipper::loadToMainRAM("/data/customStages.bin", 0x0, NOP, 0, JKRHeap::sRootHeap, JKRDvdRipper::HEAD, 0, 0);
-        if(customStagesBin != nullptr) {
-            int size = JKRHeap::sRootHeap->getSize(customStagesBin);
-            JSUMemoryInputStream memStream(customStagesBin, size);
+        // Load custom scenes dynamically
+        void *customScenesBin = JKRDvdRipper::loadToMainRAM(
+            "/data/customScenes.bin", 0x0, NOP, 0, JKRHeap::sRootHeap, JKRDvdRipper::HEAD, 0, 0);
+        if (customScenesBin != nullptr) {
+            int size = JKRHeap::sRootHeap->getSize(customScenesBin);
+            JSUMemoryInputStream memStream(customScenesBin, size);
             LevelNameRefGen data;
             JDrama::TNameRefGen::instance = &data;
             data.load(memStream);
@@ -369,7 +371,8 @@ static const char *loadScenarioNameFromBMGAfter(void *global_bmg) {
     return message ? message : errMessage;
 }
 
-SMS_NO_INLINE static const char *loadScenarioNameFromBMGAfterStub(u8 *pause_menu, void* global_bmg) {
+SMS_NO_INLINE static const char *loadScenarioNameFromBMGAfterStub(u8 *pause_menu,
+                                                                  void *global_bmg) {
     const char *name = loadScenarioNameFromBMGAfter(global_bmg);
     if (!name || strcmp(name, "") == 0) {
         (*(J2DPane **)(pause_menu + 0x1C))->add(0, 30);
@@ -427,59 +430,91 @@ static void moveStage_override(TMarDirector *director) {
     director->mNextState            = 8;
 }
 
-JDrama::TNameRef *LevelNameRefGen::getNameRef(const char *name) const
-{
-	if(strcmp("CustomStage", name) == 0) {
-        CustomStage* stage = new CustomStage(name);
+JDrama::TNameRef *LevelNameRefGen::getNameRef(const char *name) const {
+    if (strcmp("CustomScene", name) == 0) {
+        CustomScene *stage = new CustomScene(name);
         return stage;
-    }
-    else if(strcmp("CustomScenario", name) == 0) {
-        return new CustomScenario(name);
     }
     return JDrama::TNameRefGen::getNameRef(name);
 }
 
-CustomScenario::CustomScenario(const char *name) : JDrama::TNameRef(name) {}
+#define READ_ATTR(in, var) ((in).readData(&(var), sizeof(decltype((var)))))
 
-void CustomScenario::load(JSUMemoryInputStream &stream) {
-    JDrama::TNameRef::load(stream);
-    int type = 0;
-    stream.readData(&type, sizeof(int));
-    int stageId = 0;
-    stream.readData(&stageId, sizeof(int));
-    int scenarioId = 0;
-    stream.readData(&scenarioId, sizeof(int));
-    int scenarioNameId = 0;
-    stream.readData(&scenarioNameId, sizeof(int));
+// See: https://github.com/JoshuaMKW/JuniorsToolbox/tree/master/Templates/CustomScene.json
+struct ScenarioData {
+    s16 m_bmg_name_index  = -1;
+    bool m_is_ex_scenario = false;
+    s16 m_shine_id        = -1;
 
-    if(sShineAreaInfos[stageId] == nullptr) {
-        OSReport("[ERROR] Tried to add Scenario to invalid stage!");
-        return;
-    }
-
-    OSReport("[INFO] Loading CustomScenario info %d %d %d %d \n", type, stageId, scenarioId, scenarioNameId);
-
-    if(type == 0) {
-        sShineAreaInfos[stageId]->addScenario(scenarioId, scenarioNameId);
-    } else if(type == 1) {
-        sShineAreaInfos[stageId]->addExScenario(scenarioId, scenarioNameId);
-        Stage::registerExStage(stageId, sShineAreaInfos[stageId]->getShineStageID(), scenarioId);
+    void deserialize(JSUMemoryInputStream &in) {
+        READ_ATTR(in, m_bmg_name_index);
+        READ_ATTR(in, m_is_ex_scenario);
+        READ_ATTR(in, m_shine_id);
     }
 };
 
-CustomStage::CustomStage(const char *name) : JDrama::TNameRef(name) {}
+struct AreaData {
+    u8 m_area_id      = 0xFF;
+    bool m_is_ex_area = false;
+    s16 m_ex_shine_id    = -1;
 
-void CustomStage::load(JSUMemoryInputStream &stream) {
-    JDrama::TNameRef::load(stream);
-    int stageId = 0;
-    stream.readData(&stageId, sizeof(int));
-    int shineSelectPaneId = 0;
-    stream.readData(&shineSelectPaneId, sizeof(int));
-
-    OSReport("[INFO] Loading CustomStage info %d %d \n", stageId, shineSelectPaneId);
-
-    Stage::ShineAreaInfo *info = new Stage::ShineAreaInfo(stageId);
-    Stage::registerShineStage(info);
-    Stage::registerNormalStage(stageId, info->getShineStageID());
-    sShineAreaInfos[stageId] = info;
+    void deserialize(JSUMemoryInputStream &in) {
+        READ_ATTR(in, m_area_id);
+        READ_ATTR(in, m_is_ex_area);
+        READ_ATTR(in, m_ex_shine_id);
+    }
 };
+
+CustomScene::CustomScene(const char *name) : JDrama::TNameRef(name) {}
+
+void CustomScene::load(JSUMemoryInputStream &in) {
+    JDrama::TNameRef::load(in);
+
+    u8 logical_scene_id;
+    u32 shine_select_pane_id;
+    READ_ATTR(in, logical_scene_id);
+    READ_ATTR(in, shine_select_pane_id);
+
+    u32 scenario_count;
+    READ_ATTR(in, scenario_count);
+
+    ScenarioData scenario_datas[256] = {};
+    for (u32 i = 0; i < scenario_count; ++i) {
+        scenario_datas[i].deserialize(in);
+    }
+
+    u32 connected_area_count;
+    READ_ATTR(in, connected_area_count);
+
+    AreaData connected_area_datas[256] = {};
+    for (u32 i = 0; i < connected_area_count; ++i) {
+        connected_area_datas[i].deserialize(in);
+    }
+
+    Stage::ShineAreaInfo *scene_info =
+        new Stage::ShineAreaInfo(logical_scene_id, shine_select_pane_id);
+
+    for (u32 i = 0; i < scenario_count; ++i) {
+        const ScenarioData &scenario = scenario_datas[i];
+        if (scenario.m_is_ex_scenario) {
+            // EX Scenarios are scenarios that are secret. (100 coin shine, red coin missions for secret courses)
+            scene_info->addExScenario(scenario.m_shine_id, scenario.m_bmg_name_index);
+        } else {
+            scene_info->addScenario(scenario.m_shine_id, scenario.m_bmg_name_index);
+        }
+    }
+
+    Stage::registerShineStage(scene_info);
+
+    for (u32 i = 0; i < connected_area_count; ++i) {
+        const AreaData &area_data = connected_area_datas[i];
+        if (area_data.m_is_ex_area) {
+            // EX Areas are usually the secret courses themselves, and have just 1 episode entry that connects to a shine
+            Stage::registerExStage(area_data.m_area_id, logical_scene_id, area_data.m_ex_shine_id);
+        } else {
+            Stage::registerNormalStage(area_data.m_area_id, logical_scene_id);
+        }
+    }
+};
+
+#undef READ_ATTR

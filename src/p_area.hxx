@@ -25,15 +25,9 @@ namespace BetterSMS {
 	        virtual JDrama::TNameRef* getNameRef(const char*) const override;
         };
 
-        class CustomScenario : public JDrama::TNameRef {
+        class CustomScene : public JDrama::TNameRef {
         public:
-            CustomScenario(const char *name);
-            void load(JSUMemoryInputStream &stream);
-        };
-
-        class CustomStage : public JDrama::TNameRef {
-        public:
-            CustomStage(const char *name);
+            CustomScene(const char *name);
             void load(JSUMemoryInputStream &stream);
         };
     }  // namespace Stage
