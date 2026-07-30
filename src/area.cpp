@@ -256,23 +256,404 @@ SMS_WRITE_32(SMS_PORT_REGION(0x80174B8C, 0, 0, 0), 0x60000000);
 SMS_WRITE_32(SMS_PORT_REGION(0x80174B90, 0, 0, 0), 0x60000000);
 SMS_PATCH_BL(SMS_PORT_REGION(0x80174B94, 0, 0, 0), getShineFlagForSelectScreen2);
 
-static void clampSelectScreenEpisodesVisible() {
+static u8 sScenarioCountForSelectArea = 0;
+static u8 sScenarioMaxForAnyArea      = 0;
+
+static float doScenarioCountPatches(void *throwaway, u8 area) {
+    TSelectMenu *menu;
+    SMS_FROM_GPR(31, menu);
+    menu->mAreaID = area;
+
+    ShineAreaInfo *info         = sShineAreaInfos[SMS_getShineStage(menu->mAreaID)];
+    sScenarioCountForSelectArea = info ? info->getScenarioIDs().size() : 8;
+
+    if (sScenarioMaxForAnyArea == 0) {
+        for (u32 i = 0; i < 0xFF; ++i) {
+            ShineAreaInfo *info = sShineAreaInfos[SMS_getShineStage(i)];
+            if (info && info->getShineSelectPaneID() != 0) {
+                sScenarioMaxForAnyArea = Max(sScenarioMaxForAnyArea, info->getScenarioIDs().size());
+            }
+        }
+    }
+
+    // initData
+    PowerPC::writeU32((u32 *)0x80174E84, 0x2C000000 | sScenarioCountForSelectArea);
+    PowerPC::writeU32((u32 *)0x80174E90, 0x28000000 | sScenarioCountForSelectArea);
+    PowerPC::writeU32((u32 *)0x80174E98, 0x38000000 | sScenarioCountForSelectArea);
+    PowerPC::writeU32((u32 *)0x80174ED0, 0x2C050000 | sScenarioCountForSelectArea);
+    PowerPC::writeU32((u32 *)0x80174ED4, 0x20650000 | sScenarioCountForSelectArea);
+    PowerPC::writeU32((u32 *)0x80174ED8, 0x48000074);
+
+    PowerPC::writeU32((u32 *)0x8017505C, 0x20030000 | (sScenarioMaxForAnyArea - 1));
+    PowerPC::writeU32((u32 *)0x80175114, 0x20030000 | sScenarioMaxForAnyArea);
+
+    // --- 0x150
+
+    PowerPC::writeU32((u32 *)0x801750A4, 0x819F0150);  // lwz r12, 0x150 (r31)
+    PowerPC::writeU32((u32 *)0x801750B0, 0x7C0CD8AE);  // lbzx r0, r12, r27
+
+    PowerPC::writeU32((u32 *)0x8017515C, 0x819F0150);  // lwz r12, 0x150 (r31)
+    PowerPC::writeU32((u32 *)0x80175168, 0x7C0CD8AE);  // lbzx r0, r12, r27
+
+    // --- 0xDC
+
+    // Preallocate
+    *(u32 **)((u8 *)menu + 0xDC) = new u32[sScenarioCountForSelectArea];
+    PowerPC::writeU32((u32 *)0x80175020, 0x60000000);  // nop the initializer ^^
+
+    PowerPC::writeU32((u32 *)0x80175094, 0x835F00DC);  // lwz r26, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x80175098, 0x7F5AEA14);  // add r26, r26, r29
+
+    PowerPC::writeU32((u32 *)0x8017514C, 0x835F00DC);  // lwz r26, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x80175150, 0x7F5AE214);  // add r26, r26, r28
+
+    PowerPC::writeU32((u32 *)0x8017529C, 0x819F00DC);  // lwz r12, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x801752A0, 0x7C6C182E);  // lwzx r3, r12, r3
+
+    PowerPC::writeU32((u32 *)0x801752B4, 0x807F00DC);  // lwz r3, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x801752B8, 0x7C63002E);  // lwzx r3, r3, r0
+
+    //
+
+    // perform
+    PowerPC::writeU32((u32 *)0x801736A8, 0x899F013B);  // lbz r12, 0x13B (r31)
+    PowerPC::writeU32((u32 *)0x801736B0, 0x807F0150);  // lwz r3, 0x150 (r31)
+    PowerPC::writeU32((u32 *)0x801736B4, 0x7C0C18AE);  // lbzx r0, r12, r3
+
+    // --- 0xDC
+    PowerPC::writeU32((u32 *)0x80173D58, 0x819F00DC);  // lwz r12, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x80173D5C, 0x7C6C182E);  // lwzx r3, r12, r3
+    PowerPC::writeU32((u32 *)0x80173D70, 0x807F00DC);  // lwz r3, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x80173D74, 0x7C63002E);  // lwzx r3, r3, r0
+
+    PowerPC::writeU32((u32 *)0x80173DF0, 0x819F00DC);  // lwz r12, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x80173DF4, 0x7C6C182E);  // lwzx r3, r12, r3
+    PowerPC::writeU32((u32 *)0x80173E08, 0x807F00DC);  // lwz r3, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x80173E0C, 0x7C63002E);  // lwzx r3, r3, r0
+
+    PowerPC::writeU32((u32 *)0x801739B4, 0x819F00DC);  // lwz r12, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x801739B8, 0x7C6C182E);  // lwzx r3, r12, r3
+    PowerPC::writeU32((u32 *)0x801739CC, 0x807F00DC);  // lwz r3, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x801739D0, 0x7C63002E);  // lwzx r3, r3, r0
+
+    PowerPC::writeU32((u32 *)0x80173A4C, 0x819F00DC);  // lwz r12, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x80173A50, 0x7C6C182E);  // lwzx r3, r12, r3
+    PowerPC::writeU32((u32 *)0x80173A64, 0x807F00DC);  // lwz r3, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x80173A68, 0x7C63002E);  // lwzx r3, r3, r0
+
+    PowerPC::writeU32((u32 *)0x801740B4, 0x819F00DC);  // lwz r12, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x801740B8, 0x7C6C182E);  // lwzx r3, r12, r3
+
+    PowerPC::writeU32((u32 *)0x80174108, 0x807F00DC);  // lwz r3, 0xDC (r31)
+    PowerPC::writeU32((u32 *)0x8017410C, 0x7C63002E);  // lwzx r3, r3, r0
+
+    // -- Stuff from TSelectShineManager
+    PowerPC::writeU32((u32 *)0x801739E4, 0x80630010);  // lwz r3, 0x10 (r3)
+    PowerPC::writeU32((u32 *)0x801739E8, 0x7C63002E);  // lwzx r3, r3, r0
+
+    PowerPC::writeU32((u32 *)0x80173A7C, 0x80630010);  // lwz r3, 0x10 (r3)
+    PowerPC::writeU32((u32 *)0x80173A80, 0x7C63002E);  // lwzx r3, r3, r0
+
+    PowerPC::writeU32((u32 *)0x80173D40, 0x80630010);  // lwz r3, 0x10 (r3)
+    PowerPC::writeU32((u32 *)0x80173D44, 0x7C63002E);  // lwzx r3, r3, r0
+
+    PowerPC::writeU32((u32 *)0x80173DD8, 0x80630010);  // lwz r3, 0x10 (r3)
+    PowerPC::writeU32((u32 *)0x80173DDC, 0x7C63002E);  // lwzx r3, r3, r0
+    //
+
+    // getNextIndex
+    PowerPC::writeU32((u32 *)0x80172C3C, 0x28040000 | sScenarioCountForSelectArea);
+    PowerPC::writeU32((u32 *)0x80172C50, 0x20040000 | sScenarioCountForSelectArea);
+    PowerPC::writeU32((u32 *)0x80172C54, 0x2C040000 | sScenarioCountForSelectArea);
+
+    PowerPC::writeU32((u32 *)0x80172C60, 0x81830150);  // lwz r12, 0x150 (r3)
+    PowerPC::writeU32((u32 *)0x80172C64, 0x7C0C20AE);  // lbzx r0, r12, r4
+
+    PowerPC::writeU32((u32 *)0x80172C04, 0x81830150);  // lwz r12, 0x150 (r3)
+    PowerPC::writeU32((u32 *)0x80172C08, 0x7C0C20AE);  // lbzx r0, r12, r4
+
+    PowerPC::writeU32((u32 *)0x80174450, 0x809F0150);  // lwz r4, 0x150 (r31)
+
+    // TSelectShineManager::perform
+    PowerPC::writeU32((u32 *)0x801781BC, 0x81990010);  // lwz r12, 0x10 (r25)
+    PowerPC::writeU32((u32 *)0x801781C0, 0x7C6CB82E);  // lwzx r3, r12, r23
+    PowerPC::writeU32((u32 *)0x80178330, 0x83990010);  // lwz r28, 0x10 (r25)
+    PowerPC::writeU32((u32 *)0x80178338, 0x7F9CC214);  // add r28, r28, r24
+    PowerPC::writeU32((u32 *)0x801784EC, 0x82B90010);  // lwz r21, 0x10 (r25)
+    PowerPC::writeU32((u32 *)0x801784F0, 0x7EB5E214);  // add r21, r21, r28
+
+    // TSelectShineManager::startDecrease
+    PowerPC::writeU32((u32 *)0x80178634, 0x80A30010);  // lwz r5, 0x10 (r3)
+    PowerPC::writeU32((u32 *)0x80178638, 0x7CC5002E);  // lwzx r6, r5, r0
+    PowerPC::writeU32((u32 *)0x801786D8, 0x80630010);  // lwz r3, 0x10 (r3)
+    PowerPC::writeU32((u32 *)0x801786DC, 0x7C83002E);  // lwzx r4, r3, r0
+
+    // TSelectShineManager::startIncrease
+    PowerPC::writeU32((u32 *)0x80178738, 0x80A30010);  // lwz r5, 0x10 (r3)
+    PowerPC::writeU32((u32 *)0x8017873C, 0x7CC5002E);  // lwzx r6, r5, r0
+    PowerPC::writeU32((u32 *)0x801787DC, 0x80630010);  // lwz r3, 0x10 (r3)
+    PowerPC::writeU32((u32 *)0x801787E0, 0x7C83002E);  // lwzx r4, r3, r0
+
+    // TSelectShineManager::initData  -> reference next patch for where buffer is alloc'd from
+    PowerPC::writeU32((u32 *)0x80178D58, 0x819F0010);  // lwz r12, 0x10 (r31)
+    PowerPC::writeU32((u32 *)0x80178D5C, 0x7E6CC92E);  // stwx r19, r12, r25
+    PowerPC::writeU32((u32 *)0x80178DF0, 0x819F0010);  // lwz r12, 0x10 (r31)
+    PowerPC::writeU32((u32 *)0x80178DF4, 0x7E6CC92E);  // stwx r19, r12, r25
+    PowerPC::writeU32((u32 *)0x80178DFC, 0x819F0010);  // lwz r12, 0x10 (r31)
+    PowerPC::writeU32((u32 *)0x80178E04, 0x7C6CC92E);  // stwx r3, r12, r25
+    PowerPC::writeU32((u32 *)0x80178E0C, 0x2C140000 | sScenarioCountForSelectArea);
+    PowerPC::writeU32((u32 *)0x80178E28, 0x807F0010);  // lwz r3, 0x10 (r31)
+    PowerPC::writeU32((u32 *)0x80178E2C, 0x7C83002E);  // lwzx r4, r3, r0
+
+    // TSelectMenu::startMove -> TSelectShineManager had buffer updated
+    PowerPC::writeU32((u32 *)0x8017447C, 0x80630010);  // lwz r3, 0x10 (r3)
+    PowerPC::writeU32((u32 *)0x80174480, 0x7C63002E);  // lwzx r3, r3, r0
+
+    *(u8 **)((u8 *)menu + 0x150) = new u8[sScenarioCountForSelectArea];
+
+    // Emulate functionality at 0x80174DFC
+    for (u32 i = 0; i < sScenarioCountForSelectArea; ++i) {
+        (*(u8 **)((u8 *)menu + 0x150))[i] = 2;
+    }
+
+    // Emulate functionality at 0x80174E84
+    u8 unlocked_scenarios = 0;
+    for (u32 i = 0; i < sScenarioCountForSelectArea; ++i) {
+        const u8 shine_stage = SMS_getShineStage(area);
+        const s32 shine_id   = SMS_getShineID(shine_stage, i, false);
+        if (shine_id == -1) {
+            continue;
+        }
+
+        if (!TFlagManager::smInstance->getShineFlag(shine_id)) {
+            continue;
+        }
+
+        (*(u8 **)((u8 *)menu + 0x150))[i] = 3;
+        unlocked_scenarios += 1;
+    }
+
+    menu->mEpisodeCount = unlocked_scenarios;
+
+    // Emulate functionality at 0x80174EE8
+    for (u32 i = unlocked_scenarios; i < sScenarioCountForSelectArea; ++i) {
+        (*(u8 **)((u8 *)menu + 0x150))[i] = 0;
+    }
+
+    return SMSGetAnmFrameRate();
+}
+SMS_PATCH_BL(SMS_PORT_REGION(0x801744D0, 0, 0, 0), doScenarioCountPatches);
+SMS_WRITE_32(SMS_PORT_REGION(0x80174DFC, 0, 0, 0), 0x60000000);
+SMS_WRITE_32(SMS_PORT_REGION(0x80174E00, 0, 0, 0), 0x60000000);
+SMS_WRITE_32(SMS_PORT_REGION(0x80174E04, 0, 0, 0), 0x60000000);
+SMS_WRITE_32(SMS_PORT_REGION(0x80174E08, 0, 0, 0), 0x60000000);
+SMS_WRITE_32(SMS_PORT_REGION(0x80174E0C, 0, 0, 0), 0x60000000);
+SMS_WRITE_32(SMS_PORT_REGION(0x80174E10, 0, 0, 0), 0x60000000);
+SMS_WRITE_32(SMS_PORT_REGION(0x80174E14, 0, 0, 0), 0x60000000);
+SMS_WRITE_32(SMS_PORT_REGION(0x80174E18, 0, 0, 0), 0x60000000);
+SMS_WRITE_32(SMS_PORT_REGION(0x80174E1C, 0, 0, 0), 0x48000070);
+
+static void allocBufferForSelectShineManager(J3DModelData *data, J3DAnmColor *color) {
+    u32 *manager;
+    SMS_FROM_GPR(31, manager);
+
+    data->entryMatColorAnimator(color);
+
+    *(u32 **)((u8 *)manager + 0x10) = new u32[sScenarioCountForSelectArea];
+}
+SMS_PATCH_BL(SMS_PORT_REGION(0x80178B50, 0, 0, 0), allocBufferForSelectShineManager);
+
+static void SelectShineManager_startCloseOverride(TSelectShineManager *manager) {
+    int current = *(u32 *)((u8 *)manager + 0x8C);
+    *(((u8 *)((*(u32 ***)((u8 *)manager + 0x10))[current])) + 0x24) = 0;
+
+    for (int i = 0; i < 8; i++) {
+        u8 *shine = (u8 *)((*(u32 ***)((u8 *)manager + 0x10))[i]);
+        if (shine != nullptr && i != current && *(shine + 0x49) == 0) {
+            *(shine + 0x49) = 1;
+            *(shine + 0x48) = 0;
+        }
+    }
+
+    *((u8 *)manager + 0xA7) = 1;
+}
+SMS_PATCH_B(SMS_PORT_REGION(0x80178830, 0, 0, 0), SelectShineManager_startCloseOverride);
+
+static J2DPicture *createExtraDigitAsChildOf(u32 paneID, JUTTexture *defaultTex, J2DPicture *parent,
+                                             bool isBack) {
+    J2DPicture *digitPicture = new J2DPicture(paneID, {0, 0, 0, 0});
+
+    JUTTexture *texture      = new JUTTexture();
+    texture->mTexObj2.val[2] = 0;
+    texture->storeTIMG(*(const ResTIMG **)((u8 *)defaultTex + 0x20));
+    texture->_50 = false;
+
+    digitPicture->insert(texture, 0, 1.0f);
+
+    digitPicture->mRect = {15, 0, 40, 40};
+
+    digitPicture->mAlpha     = isBack ? 80 : 255;
+    digitPicture->mAlphaCopy = true;
+
+    digitPicture->mColorMask    = isBack ? JUtility::TColor{0, 0, 0, 255}
+                                         : JUtility::TColor{0, 255, 160, 255};
+    digitPicture->mColorOverlay = {0, 0, 0, 0};
+
+    digitPicture->mVertexColors[0] = {255, 255, 255, 255};
+    digitPicture->mVertexColors[1] = {255, 255, 255, 255};
+    digitPicture->mVertexColors[2] = {255, 255, 255, 255};
+    digitPicture->mVertexColors[3] = {255, 255, 255, 255};
+
+    parent->mChildrenList.append(&digitPicture->mPtrLink);
+    return digitPicture;
+}
+
+static void initMultiDigitEpisodeIndexToUI() {
     TSelectMenu *menu;
     SMS_FROM_GPR(31, menu);
 
-    ShineAreaInfo *info = sShineAreaInfos[SMS_getShineStage(menu->mAreaID)];
-    if (!info) {
-        return;
+    J2DPicture *picPrevFront = *(J2DPicture **)((u8 *)menu + 0x48);
+    J2DPicture *picPrevBack  = *(J2DPicture **)((u8 *)menu + 0x4C);
+    J2DPicture *picCurFront = *(J2DPicture **)((u8 *)menu + 0x70);
+    J2DPicture *picCurBack   = *(J2DPicture **)((u8 *)menu + 0x74);
+
+    picPrevBack->mIsVisible = false;
+    picCurBack->mIsVisible = false;
+
+    picPrevFront->mColorMask = JUtility::TColor{0, 255, 160, 255};
+    picPrevBack->mColorMask  = JUtility::TColor{0, 0, 0, 255};
+    picCurFront->mColorMask  = JUtility::TColor{0, 255, 160, 255};
+    picCurBack->mColorMask   = JUtility::TColor{0, 0, 0, 255};
+
+    picPrevFront->mColorOverlay = JUtility::TColor{0, 0, 0, 0};
+    picPrevBack->mColorOverlay  = JUtility::TColor{0, 0, 0, 0};
+    picCurFront->mColorOverlay  = JUtility::TColor{0, 0, 0, 0};
+    picCurBack->mColorOverlay   = JUtility::TColor{0, 0, 0, 0};
+
+    picPrevFront->move(40, -7);
+    picCurFront->move(40, -7);
+
+    JUTTexture *defaultTex = menu->mCoinCountNumberTex[0];
+
+    // Because of other modifications, these pointers are free use
+    J2DPicture *picPrevFront2 = picPrevFront2 =
+        createExtraDigitAsChildOf('xnf2', defaultTex, picPrevFront, false);
+    *(J2DPicture **)((u8 *)menu + 0xE0) = picPrevFront2;
+
+    J2DPicture *picPrevBack2 = picPrevBack2 =
+        createExtraDigitAsChildOf('xnb2', defaultTex, picPrevBack, true);
+    *(J2DPicture **)((u8 *)menu + 0xE4) = picPrevBack2;
+
+    J2DPicture *picCurFront2 = createExtraDigitAsChildOf('xcf2', defaultTex, picCurFront, false);
+    *(J2DPicture **)((u8 *)menu + 0xE8) = picCurFront2;
+
+    J2DPicture *picCurBack2 = createExtraDigitAsChildOf('xcb2', defaultTex, picCurBack, true);
+    *(J2DPicture **)((u8 *)menu + 0xEC) = picCurBack2;
+
+    const u8 uiCurIndex = menu->mEpisodeID + 1;
+    if (uiCurIndex >= 10) {
+        picPrevFront->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + 0x20), 0);
+        picPrevBack->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + 0x20), 0);
+        picPrevFront2->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + 0x20), 0);
+        picPrevBack2->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + 0x20), 0);
+        picPrevFront2->mIsVisible = true;
+        picPrevBack2->mIsVisible  = true;
+
+        picPrevFront->resize(25, 40);
+        picPrevBack->resize(25, 40);
+    } else {
+        picPrevFront->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + 0x20), 0);
+        picPrevBack->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + 0x20), 0);
+        picPrevFront2->mIsVisible = false;
+        picPrevBack2->mIsVisible  = false;
+    }
+}
+SMS_PATCH_BL(SMS_PORT_REGION(0x801752D8, 0, 0, 0), initMultiDigitEpisodeIndexToUI);
+SMS_WRITE_32(SMS_PORT_REGION(0x801752DC, 0, 0, 0), 0x48000020);
+
+static void applyMultiDigitEpisodeIndexToUI() {
+    TSelectMenu *menu;
+    SMS_FROM_GPR(31, menu);
+
+    u32 toIndex;
+    SMS_FROM_GPR(23, toIndex);
+
+    J2DPicture *picPrevFront = *(J2DPicture **)((u8 *)menu + 0x48);
+    J2DPicture *picPrevBack  = *(J2DPicture **)((u8 *)menu + 0x4C);
+    J2DPicture *picCurFront = *(J2DPicture **)((u8 *)menu + 0x70);
+    J2DPicture *picCurBack  = *(J2DPicture **)((u8 *)menu + 0x74);
+
+    // Because of other modifications, these pointers are free use
+    J2DPicture *picPrevFront2 = *(J2DPicture **)((u8 *)menu + 0xE0);
+    J2DPicture *picPrevBack2  = *(J2DPicture **)((u8 *)menu + 0xE4);
+    J2DPicture *picCurFront2  = *(J2DPicture **)((u8 *)menu + 0xE8);
+    J2DPicture *picCurBack2   = *(J2DPicture **)((u8 *)menu + 0xEC);
+
+    const u8 uiToIndex  = toIndex + 1;
+    const u8 uiCurIndex = menu->mEpisodeID + 1;
+
+    if (uiCurIndex >= 10) {
+        picPrevFront->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + 0x20), 0);
+        picPrevBack->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + 0x20), 0);
+        picPrevFront2->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + 0x20), 0);
+        picPrevBack2->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + 0x20), 0);
+        picPrevFront2->mIsVisible = true;
+        picPrevBack2->mIsVisible  = true;
+
+        picPrevFront->resize(25, 40);
+        picPrevBack->resize(25, 40);
+    } else {
+        picPrevFront->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + 0x20), 0);
+        picPrevBack->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + 0x20), 0);
+        picPrevFront2->mIsVisible = false;
+        picPrevBack2->mIsVisible  = false;
+
+        picPrevFront->resize(40, 40);
+        picPrevBack->resize(40, 40);
     }
 
-    const TGlobalVector<s32> &scenarioIDs = info->getScenarioIDs();
-    menu->mEpisodeCount                   = Min(menu->mEpisodeCount, scenarioIDs.size());
+    if (uiToIndex >= 10) {
+        picCurFront->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex / 10] + 0x20), 0);
+        picCurBack->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex / 10] + 0x20), 0);
+        picCurFront2->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex % 10] + 0x20), 0);
+        picCurBack2->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex % 10] + 0x20), 0);
+        picCurFront2->mIsVisible = true;
+        picCurBack2->mIsVisible  = true;
+
+        picCurFront->resize(25, 40);
+        picCurBack->resize(25, 40);
+    } else {
+        picCurFront->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex] + 0x20), 0);
+        picCurBack->changeTexture(
+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex] + 0x20), 0);
+        picCurFront2->mIsVisible = false;
+        picCurBack2->mIsVisible  = false;
+
+        picCurFront->resize(40, 40);
+        picCurBack->resize(40, 40);
+    }
 }
-SMS_PATCH_BL(SMS_PORT_REGION(0x80174E8C, 0, 0, 0), clampSelectScreenEpisodesVisible);
-SMS_WRITE_32(SMS_PORT_REGION(0x80174E90, 0, 0, 0), 0x60000000);
-SMS_WRITE_32(SMS_PORT_REGION(0x80174E94, 0, 0, 0), 0x60000000);
-SMS_WRITE_32(SMS_PORT_REGION(0x80174E98, 0, 0, 0), 0x60000000);
-SMS_WRITE_32(SMS_PORT_REGION(0x80174E9C, 0, 0, 0), 0x60000000);
+SMS_PATCH_BL(SMS_PORT_REGION(0x80173C90, 0, 0, 0), applyMultiDigitEpisodeIndexToUI);
+SMS_WRITE_32(SMS_PORT_REGION(0x80173C94, 0, 0, 0), 0x48000054);
+SMS_PATCH_BL(SMS_PORT_REGION(0x80173904, 0, 0, 0), applyMultiDigitEpisodeIndexToUI);
+SMS_WRITE_32(SMS_PORT_REGION(0x80173908, 0, 0, 0), 0x48000054);
 
 static const char *getScenarioNameForSelectScreen() {
     TSelectMenu *menu;
@@ -456,7 +837,7 @@ struct ScenarioData {
 struct AreaData {
     u8 m_area_id      = 0xFF;
     bool m_is_ex_area = false;
-    s16 m_ex_shine_id    = -1;
+    s16 m_ex_shine_id = -1;
 
     void deserialize(JSUMemoryInputStream &in) {
         READ_ATTR(in, m_area_id);
@@ -497,7 +878,8 @@ void CustomScene::load(JSUMemoryInputStream &in) {
     for (u32 i = 0; i < scenario_count; ++i) {
         const ScenarioData &scenario = scenario_datas[i];
         if (scenario.m_is_ex_scenario) {
-            // EX Scenarios are scenarios that are secret. (100 coin shine, red coin missions for secret courses)
+            // EX Scenarios are scenarios that are secret. (100 coin shine, red coin missions for
+            // secret courses)
             scene_info->addExScenario(scenario.m_shine_id, scenario.m_bmg_name_index);
         } else {
             scene_info->addScenario(scenario.m_shine_id, scenario.m_bmg_name_index);
@@ -509,7 +891,8 @@ void CustomScene::load(JSUMemoryInputStream &in) {
     for (u32 i = 0; i < connected_area_count; ++i) {
         const AreaData &area_data = connected_area_datas[i];
         if (area_data.m_is_ex_area) {
-            // EX Areas are usually the secret courses themselves, and have just 1 episode entry that connects to a shine
+            // EX Areas are usually the secret courses themselves, and have just 1 episode entry
+            // that connects to a shine
             Stage::registerExStage(area_data.m_area_id, logical_scene_id, area_data.m_ex_shine_id);
         } else {
             Stage::registerNormalStage(area_data.m_area_id, logical_scene_id);
