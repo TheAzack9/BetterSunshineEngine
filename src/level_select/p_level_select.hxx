@@ -19,61 +19,98 @@
 
 using namespace BetterSMS;
 
-struct EpisodeMenuInfo {
+struct ScenarioMenuInfo {
     J2DTextBox *mScenarioTextBox;
-    J2DTextBox *mFilenameTextBox;
-    s32 mNormalStageID;
+    s32 mSceneID;
     s32 mScenarioID;
 };
 
+struct SceneMenuInfo {
+    s32 mSceneID;
+    s32 mPrimaryAreaID;  // Important for triggering shine select
+    J2DTextBox *mNameTextBox;
+    J2DPane *mScenarioListPane;
+    JGadget::TVector<ScenarioMenuInfo *> mScenarioMenuInfos;
+};
+
+struct EpisodeMenuInfo {
+    J2DTextBox *mEpisodeTextBox;
+    J2DTextBox *mFilenameTextBox;
+    s32 mNormalStageID;
+    s32 mEpisodeID;
+};
+
 struct AreaMenuInfo {
+    s32 mAreaID;
+    J2DTextBox *mNameTextBox;
     J2DPane *mEpisodeListPane;
-    J2DTextBox *mTextBox;
-    JGadget::TVector<EpisodeMenuInfo *> mEpisodeInfos;
-    s32 mStageID;
+    JGadget::TVector<EpisodeMenuInfo *> mEpisodeMenuInfos;
 };
 
 class LevelSelectScreen : public JDrama::TViewObj {
+    enum ELevelSelectView {
+        SCENE_VIEW,
+        AREA_VIEW,
+    };
 
 public:
     friend class LevelSelectDirector;
 
     LevelSelectScreen(TMarioGamePad *controller)
         : TViewObj("<LevelSelectScreen>"), mScreen(nullptr), mController(controller),
-          mScrollAreaID(0), mScrollEpisodeID(0), mSelectedAreaID(-1), mSelectedEpisodeID(-1),
-          mAreaInfos(), mShouldExit(false) {}
+          mScrollGroupID(0), mScrollEntryID(0), mSelectedGroupID(-1), mSelectedEntryID(-1),
+          mSceneMenuInfos(), mAreaMenuInfos(), mShouldExit(false), mViewToggle(SCENE_VIEW) {}
 
     ~LevelSelectScreen() override {}
 
     void perform(u32, JDrama::TGraphics *) override;
 
-    AreaMenuInfo *getAreaInfo(u32 index);
-    EpisodeMenuInfo *getEpisodeInfo(u32 index);
+    SceneMenuInfo *getAreaInfo(u32 index);
+    ScenarioMenuInfo *getEpisodeInfo(u32 index);
 
 protected:
-    void processInput();
-    bool genAreaText(s32 flatRow, u8 normalStageID, u8 shineStageID, void *stageNameData, void *scenarioNameData);
-    bool genAreaTextTest1(s32 flatRow);
-    bool genAreaTextTest2(s32 flatRow);
-    bool genAreaTextScale(s32 flatRow);
-    void genEpisodeText(AreaMenuInfo &, u8 normalStageID, u8 shineStageID, void *scenarioNameData);
-    void genEpisodeTextDelfinoPlaza(AreaMenuInfo &, u8 normalStageID, u8 shineStageID, void *scenarioNameData);
-    void genEpisodeTextTest1(AreaMenuInfo &info);
-    void genEpisodeTextTest2(AreaMenuInfo &info);
-    void genEpisodeTextScale(AreaMenuInfo &info);
-    J2DPane *findOrCreateAreaPane(u8 normalStageID, u8 shineStageID, int width, int height, bool *created);
+    void processSceneInput();
+    void processAreaInput();
+
+    void drawSceneList();
+    void drawAreaList();
+
+    bool genSceneText(s32 flatRow, u8 normalStageID, u8 shineStageID, void *stageNameData,
+                      void *scenarioNameData);
+    void genScenarioText(SceneMenuInfo &, u8 normalStageID, u8 shineStageID,
+                         void *scenarioNameData);
+
+    bool genAreaText(s32 flatRow, u8 normalStageID);
+    void genEpisodeTextDelfinoPlaza(SceneMenuInfo &, u8 normalStageID, u8 shineStageID,
+                                    void *scenarioNameData);
+    void genEpisodeTextTest1(SceneMenuInfo &info);
+    void genEpisodeTextTest2(SceneMenuInfo &info);
+    void genEpisodeTextScale(SceneMenuInfo &info);
+
+    J2DPane *findOrCreateScenePane(u8 shineStageID, int width, int height, bool *created);
+    J2DPane *findOrCreateAreaPane(u8 normalStageID, int width, int height, bool *created);
 
 private:
+    TMarioGamePad *mController;
     bool mShouldExit;
+    
     s32 mColumnSize;
     s32 mColumnCount;
-    s32 mScrollAreaID;
-    s32 mScrollEpisodeID;
-    s32 mSelectedAreaID;
-    s32 mSelectedEpisodeID;
-    TMarioGamePad *mController;
+    
+    s32 mScrollGroupID;
+    s32 mScrollEntryID;
+    s32 mSelectedGroupID;
+    s32 mSelectedEntryID;
+    
     J2DScreen *mScreen;
-    JGadget::TVector<AreaMenuInfo *> mAreaInfos;
+    J2DPane *mSceneViewPane;
+    J2DPane *mAreaViewPane;
+    J2DTextBox *mSelectLabel;
+    
+    JGadget::TVector<SceneMenuInfo *> mSceneMenuInfos;
+    JGadget::TVector<AreaMenuInfo *> mAreaMenuInfos;
+    
+    ELevelSelectView mViewToggle;
 };
 
 class LevelSelectDirector : public JDrama::TDirector {
