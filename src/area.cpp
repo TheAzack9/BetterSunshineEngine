@@ -491,7 +491,7 @@ static void SelectShineManager_startCloseOverride(TSelectShineManager *manager) 
     int current = *(u32 *)((u8 *)manager + 0x8C);
     *(((u8 *)((*(u32 ***)((u8 *)manager + 0x10))[current])) + 0x24) = 0;
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < sScenarioCountForSelectArea; i++) {
         u8 *shine = (u8 *)((*(u32 ***)((u8 *)manager + 0x10))[i]);
         if (shine != nullptr && i != current && *(shine + 0x49) == 0) {
             *(shine + 0x49) = 1;
