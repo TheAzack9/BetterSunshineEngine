@@ -9,6 +9,8 @@
 
 #define MESSAGE_NO_DATA "NO DATA"
 
+bool gForceOpenShineSelect = false;
+
 static void moveStage_override(TMarDirector *director);
 
 namespace BetterSMS {
@@ -192,7 +194,7 @@ static TExPane *constructExPaneForSelectScreen(TExPane *pane, J2DScreen *screen)
 
     // This check is only necessary once
     SMS_ASSERT(sShineAreaInfos[SMS_getShineStage(menu->mAreaID)]->getShineSelectPaneID() != 0,
-               "Tried to open shine select screen for an area that has no pane ID!");
+               "Tried to open shine select screen for an area (%d) that has no pane ID!", menu->mAreaID);
 
     return (TExPane *)__ct__7TExPaneFP9J2DScreenUl(
         pane, screen, sShineAreaInfos[SMS_getShineStage(menu->mAreaID)]->getShineSelectPaneID());
@@ -259,19 +261,31 @@ SMS_PATCH_BL(SMS_PORT_REGION(0x80174B94, 0, 0, 0), getShineFlagForSelectScreen2)
 static u8 sScenarioCountForSelectArea = 0;
 static u8 sScenarioMaxForAnyArea      = 0;
 
-static float doScenarioCountPatches(void *throwaway, u8 area) {
+static void *doScenarioCountPatches() {
     TSelectMenu *menu;
     SMS_FROM_GPR(31, menu);
-    menu->mAreaID = area;
 
     ShineAreaInfo *info         = sShineAreaInfos[SMS_getShineStage(menu->mAreaID)];
     sScenarioCountForSelectArea = info ? info->getScenarioIDs().size() : 8;
 
     if (sScenarioMaxForAnyArea == 0) {
         for (u32 i = 0; i < 0xFF; ++i) {
-            ShineAreaInfo *info = sShineAreaInfos[SMS_getShineStage(i)];
-            if (info && info->getShineSelectPaneID() != 0) {
-                sScenarioMaxForAnyArea = Max(sScenarioMaxForAnyArea, info->getScenarioIDs().size());
+            s32 shineStage      = SMS_getShineStage(i);
+            if (shineStage < 0 || shineStage > 0xFF) {
+                continue;
+            }
+            ShineAreaInfo *info = sShineAreaInfos[shineStage];
+            if (info) {
+                const u32 paneID       = info->getShineSelectPaneID();
+                J2DPane *infoGroupPane = menu->mScreen->search(paneID);
+                if (infoGroupPane) {
+                    J2DPane *infoAPane = infoGroupPane->search((paneID & ~0xFF) | 'a');
+                    J2DPane *infoBPane = infoGroupPane->search((paneID & ~0xFF) | 'b');
+                    if (infoAPane && infoBPane) {  // Make sure that all expected panes exist
+                        sScenarioMaxForAnyArea =
+                            Max(sScenarioMaxForAnyArea, info->getScenarioIDs().size());
+                    }
+                }
             }
         }
     }
@@ -419,7 +433,7 @@ static float doScenarioCountPatches(void *throwaway, u8 area) {
     // Emulate functionality at 0x80174E84
     u8 unlocked_scenarios = 0;
     for (u32 i = 0; i < sScenarioCountForSelectArea; ++i) {
-        const u8 shine_stage = SMS_getShineStage(area);
+        const u8 shine_stage = SMS_getShineStage(menu->mAreaID);
         const s32 shine_id   = SMS_getShineID(shine_stage, i, false);
         if (shine_id == -1) {
             continue;
@@ -440,9 +454,19 @@ static float doScenarioCountPatches(void *throwaway, u8 area) {
         (*(u8 **)((u8 *)menu + 0x150))[i] = 0;
     }
 
-    return SMSGetAnmFrameRate();
+    if (gForceOpenShineSelect) {
+        for (u32 i = 0; i < sScenarioCountForSelectArea; ++i) {
+            if ((*(u8 **)((u8 *)menu + 0x150))[i] != 3) {
+                (*(u8 **)((u8 *)menu + 0x150))[i] = 2;
+            }
+        }
+        menu->mEpisodeCount   = sScenarioCountForSelectArea;
+        gForceOpenShineSelect = false;
+    }
+
+    return new char[0x5c];
 }
-SMS_PATCH_BL(SMS_PORT_REGION(0x801744D0, 0, 0, 0), doScenarioCountPatches);
+SMS_PATCH_BL(SMS_PORT_REGION(0x80174540, 0, 0, 0), doScenarioCountPatches);
 SMS_WRITE_32(SMS_PORT_REGION(0x80174DFC, 0, 0, 0), 0x60000000);
 SMS_WRITE_32(SMS_PORT_REGION(0x80174E00, 0, 0, 0), 0x60000000);
 SMS_WRITE_32(SMS_PORT_REGION(0x80174E04, 0, 0, 0), 0x60000000);
