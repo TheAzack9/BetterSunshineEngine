@@ -496,7 +496,8 @@ public:
 
     SettingsScreen(TMarioGamePad *controller)
         : TViewObj("<SettingsScreen>"), mScreen(nullptr), mController(controller),
-          mShineIcon(nullptr), mCurrentTextBox(nullptr), mGroupID(0), mSettingID(0), mGroups() {
+          mShineIcon(nullptr), mCurrentTextBox(nullptr), mGroupID(0), mSettingID(0), mGroups(),
+          mPrevHint(nullptr), mNextHint(nullptr) {
         mShineAnimator = SimpleTexAnimator(sLoadingIconTIMGs, 16);
     }
 
@@ -647,6 +648,9 @@ private:
                     mGroupID = 0;
             }
 
+            mPrevHint->mIsVisible = mGroupID != 0;
+            mNextHint->mIsVisible = mGroupID != mGroups.size() - 1;
+
             if (oldID != mGroupID) {
                 mCurrentGroupInfo->mGroupPane->mIsVisible = false;
                 mCurrentGroupInfo                         = getGroupInfo(mGroupID);
@@ -692,6 +696,8 @@ private:
     SettingInfo *mCurrentSettingInfo;
     SimpleTexAnimator mShineAnimator;
     TGlobalVector<GroupInfo *> mGroups;
+    J2DTextBox *mNextHint;
+    J2DTextBox *mPrevHint;
 };
 
 class IntSettingPanel : public JDrama::TViewObj {

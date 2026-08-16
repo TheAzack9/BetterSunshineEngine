@@ -878,6 +878,20 @@ void SettingsDirector::initializeSettingsLayout() {
              static_cast<int>(getScreenOrthoWidth() - 20), screenRenderHeight},
             gpSystemFont->mFont, "@ More...", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
         mSettingScreen->mScreen->mChildrenList.append(&moreLabel->mPtrLink);
+
+        mSettingScreen->mPrevHint = new J2DTextBox(
+            'prev',
+            {static_cast<int>(20 - getScreenRatioAdjustX()), 0,
+             static_cast<int>(getScreenOrthoWidth() - 20), 90},
+            gpSystemFont->mFont, "< Prev", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+        mSettingScreen->mScreen->mChildrenList.append(&mSettingScreen->mPrevHint->mPtrLink);
+
+        mSettingScreen->mNextHint = new J2DTextBox(
+            'next',
+            {static_cast<int>(470 + getScreenRatioAdjustX()), 0,
+             static_cast<int>(getScreenOrthoWidth() - 20), 90},
+            gpSystemFont->mFont, "Next >", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+        mSettingScreen->mScreen->mChildrenList.append(&mSettingScreen->mNextHint->mPtrLink);
     }
 
     int i = 0;
@@ -897,16 +911,7 @@ void SettingsDirector::initializeSettingsLayout() {
             char *groupTextBuf = new char[70];
             memset(groupTextBuf, 0, 70);
 
-            if (settingsGroups.size() == 1) {
-                snprintf(groupTextBuf, 70, "    %s    ", groupName);
-            } else {
-                if (i == 0)
-                    snprintf(groupTextBuf, 70, "    %s   >", groupName);
-                else if (i == settingsGroups.size() - 1)
-                    snprintf(groupTextBuf, 70, "<   %s    ", groupName);
-                else
-                    snprintf(groupTextBuf, 70, "<   %s   >", groupName);
-            }
+            snprintf(groupTextBuf, 70, "%s", groupName);
 
             J2DTextBox *label =
                 new J2DTextBox(('t' << 24) | i, {0, 0, 600, 90}, gpSystemFont->mFont, groupTextBuf,
@@ -1277,8 +1282,8 @@ const char *SettingsDirector::getErrorString(int errorcode) {
 static s32 checkForSettingsMenu(TMarDirector *director) {
     s32 ret = director->changeState();
     if (director->mAreaID == 15 && director->mEpisodeID == 0) {
+        TSMSFader *fader = gpApplication.mFader;
         if (gpCubeCamera->getInCubeNo(*(Vec *)gpMarioPos) > 0) {
-            TSMSFader *fader = gpApplication.mFader;
             if (fader->mFadeStatus == TSMSFader::FADE_OFF) {
                 fader->startFadeoutT(0.4f);
             } else if (fader->mFadeStatus == TSMSFader::FADE_ON) {
@@ -1289,6 +1294,8 @@ static s32 checkForSettingsMenu(TMarDirector *director) {
     return ret;
 }
 SMS_PATCH_BL(SMS_PORT_REGION(0x80299D0C, 0, 0, 0), checkForSettingsMenu);
+
+/* UNLOCK NOTIFICATION */
 
 static J2DScreen *sNotificationScreen;
 static J2DTextBox *sNotificationBox;
