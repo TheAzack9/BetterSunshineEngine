@@ -822,77 +822,8 @@ void SettingsDirector::initializeSettingsLayout() {
 
     mSettingScreen->mScreen =
         new J2DScreen(8, 'ROOT', {0, 0, screenOrthoWidth, screenRenderHeight});
-    {
-        JUTTexture *mask      = new JUTTexture();
-        mask->mTexObj2.val[2] = 0;
-        mask->storeTIMG(GetResourceTextureHeader(gMaskBlack));
-        mask->_50 = false;
 
-        J2DPicture *maskTop    = new J2DPicture('mskt', {0, 0, 0, 0});
-        J2DPicture *maskBottom = new J2DPicture('mskb', {0, 0, 0, 0});
-
-        maskTop->insert(mask, 0, 1.0f);
-        maskBottom->insert(mask, 0, 1.0f);
-
-        maskTop->mRect    = {-screenAdjustX, 0, screenOrthoWidth, 90};
-        maskBottom->mRect = {-screenAdjustX, screenRenderHeight - 90, screenOrthoWidth,
-                             screenRenderHeight};
-
-        maskTop->mAlpha    = 160;
-        maskBottom->mAlpha = 160;
-
-        maskTop->mColorOverlay    = {0, 0, 0, 255};
-        maskBottom->mColorOverlay = {0, 0, 0, 255};
-
-        maskTop->mVertexColors[0] = {0, 0, 0, 100};
-        maskTop->mVertexColors[1] = {0, 0, 0, 100};
-        maskTop->mVertexColors[2] = {0, 0, 0, 255};
-        maskTop->mVertexColors[3] = {0, 0, 0, 255};
-
-        maskBottom->mVertexColors[0] = {0, 0, 0, 255};
-        maskBottom->mVertexColors[1] = {0, 0, 0, 255};
-        maskBottom->mVertexColors[2] = {0, 0, 0, 100};
-        maskBottom->mVertexColors[3] = {0, 0, 0, 100};
-
-        mSettingScreen->mScreen->mChildrenList.append(&maskTop->mPtrLink);
-        mSettingScreen->mScreen->mChildrenList.append(&maskBottom->mPtrLink);
-
-        J2DTextBox *label = new J2DTextBox(
-            'logo', {0, screenRenderHeight - 90, 600, screenRenderHeight}, gpSystemFont->mFont,
-            "Game Settings", J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
-        label->mCharSizeX   = 24;
-        label->mCharSizeY   = 24;
-        label->mNewlineSize = 24;
-        mSettingScreen->mScreen->mChildrenList.append(&label->mPtrLink);
-
-        J2DTextBox *exitLabel = new J2DTextBox(
-            'exit',
-            {static_cast<int>(20 - getScreenRatioAdjustX()), screenRenderHeight - 90,
-             static_cast<int>(getScreenOrthoWidth() - 20), screenRenderHeight},
-            gpSystemFont->mFont, "# Exit", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
-        mSettingScreen->mScreen->mChildrenList.append(&exitLabel->mPtrLink);
-
-        J2DTextBox *moreLabel = new J2DTextBox(
-            'more',
-            {static_cast<int>(470 + getScreenRatioAdjustX()), screenRenderHeight - 90,
-             static_cast<int>(getScreenOrthoWidth() - 20), screenRenderHeight},
-            gpSystemFont->mFont, "@ More...", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
-        mSettingScreen->mScreen->mChildrenList.append(&moreLabel->mPtrLink);
-
-        mSettingScreen->mPrevHint = new J2DTextBox(
-            'prev',
-            {static_cast<int>(20 - getScreenRatioAdjustX()), 0,
-             static_cast<int>(getScreenOrthoWidth() - 20), 90},
-            gpSystemFont->mFont, "< Prev", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
-        mSettingScreen->mScreen->mChildrenList.append(&mSettingScreen->mPrevHint->mPtrLink);
-
-        mSettingScreen->mNextHint = new J2DTextBox(
-            'next',
-            {static_cast<int>(470 + getScreenRatioAdjustX()), 0,
-             static_cast<int>(getScreenOrthoWidth() - 20), 90},
-            gpSystemFont->mFont, "Next >", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
-        mSettingScreen->mScreen->mChildrenList.append(&mSettingScreen->mNextHint->mPtrLink);
-    }
+    // Game settings
 
     int i = 0;
     TGlobalVector<Settings::SettingsGroup *> settingsGroups;
@@ -905,22 +836,8 @@ void SettingsDirector::initializeSettingsLayout() {
 
         J2DPane *groupPane =
             new J2DPane(19, ('p' << 24) | i, {0, 0, screenRenderWidth, screenRenderHeight});
+
         groupPane->mIsVisible = false;
-        {
-
-            char *groupTextBuf = new char[70];
-            memset(groupTextBuf, 0, 70);
-
-            snprintf(groupTextBuf, 70, "%s", groupName);
-
-            J2DTextBox *label =
-                new J2DTextBox(('t' << 24) | i, {0, 0, 600, 90}, gpSystemFont->mFont, groupTextBuf,
-                               J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
-            label->mCharSizeX   = 24;
-            label->mCharSizeY   = 24;
-            label->mNewlineSize = 24;
-            groupPane->mChildrenList.append(&label->mPtrLink);
-        }
 
         auto *groupInfo          = new GroupInfo();
         groupInfo->mGroupPane    = groupPane;
@@ -936,11 +853,11 @@ void SettingsDirector::initializeSettingsLayout() {
 
             J2DTextBox *settingText = new J2DTextBox(
                 ('s' << 24) | n, {0, 100 + (21 * ny), 600, 148 + (21 * ny)}, gpSystemFont->mFont,
-                "", J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
+                "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
 
             J2DTextBox *settingTextBehind = new J2DTextBox(
                 ('b' << 24) | n, {2, 102 + (21 * ny), 602, 150 + (21 * ny)}, gpSystemFont->mFont,
-                "", J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
+                "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
             {
                 char valueTextbuf[40];
                 setting->getValueName(valueTextbuf);
@@ -992,6 +909,94 @@ void SettingsDirector::initializeSettingsLayout() {
         }
 
         ++i;
+    }
+
+    // Layout
+    {
+        JUTTexture *mask      = new JUTTexture();
+        mask->mTexObj2.val[2] = 0;
+        mask->storeTIMG(GetResourceTextureHeader(gMaskBlack));
+        mask->_50 = false;
+
+        J2DPicture *maskTop    = new J2DPicture('mskt', {0, 0, 0, 0});
+        J2DPicture *maskBottom = new J2DPicture('mskb', {0, 0, 0, 0});
+
+        maskTop->insert(mask, 0, 1.0f);
+        maskBottom->insert(mask, 0, 1.0f);
+
+        maskTop->mRect    = {-screenAdjustX, 0, screenOrthoWidth, 90};
+        maskBottom->mRect = {-screenAdjustX, screenRenderHeight - 90, screenOrthoWidth,
+                             screenRenderHeight};
+
+        maskTop->mAlpha    = 160;
+        maskBottom->mAlpha = 160;
+
+        maskTop->mColorOverlay    = {0, 0, 0, 255};
+        maskBottom->mColorOverlay = {0, 0, 0, 255};
+
+        maskTop->mVertexColors[0] = {0, 0, 0, 100};
+        maskTop->mVertexColors[1] = {0, 0, 0, 100};
+        maskTop->mVertexColors[2] = {0, 0, 0, 255};
+        maskTop->mVertexColors[3] = {0, 0, 0, 255};
+
+        maskBottom->mVertexColors[0] = {0, 0, 0, 255};
+        maskBottom->mVertexColors[1] = {0, 0, 0, 255};
+        maskBottom->mVertexColors[2] = {0, 0, 0, 100};
+        maskBottom->mVertexColors[3] = {0, 0, 0, 100};
+
+        mSettingScreen->mScreen->mChildrenList.append(&maskTop->mPtrLink);
+        mSettingScreen->mScreen->mChildrenList.append(&maskBottom->mPtrLink);
+
+        char *settingTextBuf = new char[100];
+        memset(settingTextBuf, 0, 100);
+        snprintf(settingTextBuf, 100, "Game Settings (1 / %ld)", settingsGroups.size());
+        mSettingScreen->mGameSettingsTitle =
+            new J2DTextBox('logo', {0, -10, 600, 80}, gpSystemFont->mFont, settingTextBuf,
+                           J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
+        mSettingScreen->mGameSettingsTitle->mCharSizeX   = 24;
+        mSettingScreen->mGameSettingsTitle->mCharSizeY   = 24;
+        mSettingScreen->mGameSettingsTitle->mNewlineSize = 24;
+        mSettingScreen->mScreen->mChildrenList.append(
+            &mSettingScreen->mGameSettingsTitle->mPtrLink);
+
+        char *groupTitleTextBuf = new char[100];
+        memset(groupTitleTextBuf, 0, 100);
+        snprintf(groupTitleTextBuf, 100, "Super Mario Sunshine");
+        mSettingScreen->mGroupTitle =
+            new J2DTextBox('logo', {0, 20, 600, 110}, gpSystemFont->mFont, groupTitleTextBuf,
+                           J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
+        mSettingScreen->mGroupTitle->mCharSizeX   = 20;
+        mSettingScreen->mGroupTitle->mCharSizeY   = 20;
+        mSettingScreen->mGroupTitle->mNewlineSize = 20;
+        mSettingScreen->mScreen->mChildrenList.append(&mSettingScreen->mGroupTitle->mPtrLink);
+
+        J2DTextBox *exitLabel = new J2DTextBox(
+            'exit',
+            {static_cast<int>(20 - getScreenRatioAdjustX()), screenRenderHeight - 90,
+             static_cast<int>(getScreenOrthoWidth() - 20), screenRenderHeight},
+            gpSystemFont->mFont, "# Exit", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+        mSettingScreen->mScreen->mChildrenList.append(&exitLabel->mPtrLink);
+
+        J2DTextBox *moreLabel = new J2DTextBox(
+            'more',
+            {static_cast<int>(470 + getScreenRatioAdjustX()), screenRenderHeight - 90,
+             static_cast<int>(getScreenOrthoWidth() - 20), screenRenderHeight},
+            gpSystemFont->mFont, "@ More...", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+        mSettingScreen->mScreen->mChildrenList.append(&moreLabel->mPtrLink);
+
+        mSettingScreen->mPrevHint = new J2DTextBox(
+            'prev',
+            {static_cast<int>(20 - getScreenRatioAdjustX()), 0,
+             static_cast<int>(getScreenOrthoWidth() - 20), 90},
+            gpSystemFont->mFont, "< Prev", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+        mSettingScreen->mScreen->mChildrenList.append(&mSettingScreen->mPrevHint->mPtrLink);
+
+        mSettingScreen->mNextHint = new J2DTextBox(
+            'next',
+            {static_cast<int>(470 + getScreenRatioAdjustX()), 0,
+             static_cast<int>(getScreenOrthoWidth() - 20), 90},
+            gpSystemFont->mFont, "Next >", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+        mSettingScreen->mScreen->mChildrenList.append(&mSettingScreen->mNextHint->mPtrLink);
     }
 }
 

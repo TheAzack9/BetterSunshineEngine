@@ -497,7 +497,8 @@ public:
     SettingsScreen(TMarioGamePad *controller)
         : TViewObj("<SettingsScreen>"), mScreen(nullptr), mController(controller),
           mShineIcon(nullptr), mCurrentTextBox(nullptr), mGroupID(0), mSettingID(0), mGroups(),
-          mPrevHint(nullptr), mNextHint(nullptr) {
+          mGameSettingsTitle(nullptr), mGroupTitle(nullptr), mPrevHint(nullptr),
+          mNextHint(nullptr) {
         mShineAnimator = SimpleTexAnimator(sLoadingIconTIMGs, 16);
     }
 
@@ -648,12 +649,19 @@ private:
                     mGroupID = 0;
             }
 
-            mPrevHint->mIsVisible = mGroupID != 0;
-            mNextHint->mIsVisible = mGroupID != mGroups.size() - 1;
-
             if (oldID != mGroupID) {
+                mPrevHint->mIsVisible = mGroupID != 0;
+                mNextHint->mIsVisible = mGroupID != mGroups.size() - 1;
+
+                memset(mGameSettingsTitle->mStrPtr, 0, 100);
+                snprintf(mGameSettingsTitle->mStrPtr, 100, "Game Settings (%ld / %ld)",
+                         mGroupID + 1, mGroups.size());
+
                 mCurrentGroupInfo->mGroupPane->mIsVisible = false;
                 mCurrentGroupInfo                         = getGroupInfo(mGroupID);
+                memset(mGroupTitle->mStrPtr, 0, 100);
+                snprintf(mGroupTitle->mStrPtr, 100, "%s",
+                         Settings::getGroupName(*mCurrentGroupInfo->mSettingGroup));
                 mCurrentGroupInfo->mGroupPane->mIsVisible = true;
 
                 // We intentionally loop past the end to get a nullptr
@@ -696,6 +704,8 @@ private:
     SettingInfo *mCurrentSettingInfo;
     SimpleTexAnimator mShineAnimator;
     TGlobalVector<GroupInfo *> mGroups;
+    J2DTextBox *mGameSettingsTitle;
+    J2DTextBox *mGroupTitle;
     J2DTextBox *mNextHint;
     J2DTextBox *mPrevHint;
 };
