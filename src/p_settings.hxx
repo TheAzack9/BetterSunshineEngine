@@ -783,7 +783,7 @@ public:
         mIsNegative = value < 0;
         mDigitIndex = 9;
 
-        int i       = 9;
+        int i = 9;
 
         while (value > 0) {
             mValue[i--] = value % 10;
@@ -1244,7 +1244,7 @@ private:
 class GammaSetting final : public Settings::FloatSetting {
 public:
     GammaSetting(const char *name) : FloatSetting(name, &mGammaValue), mGammaValue(1.0f) {
-        mValueRange = {0.5f, 2.0f, 0.1f};
+        mValueRange     = {0.5f, 2.0f, 0.1f};
         mValueChangedCB = GammaSetting::valueChangedCB;
     }
     ~GammaSetting() override {}

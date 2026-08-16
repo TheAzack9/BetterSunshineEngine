@@ -275,7 +275,7 @@ BETTER_SMS_FOR_CALLBACK void initAllSettings(TApplication *app) {
                     "Failed to mount memory card for loading module settings!\n\n"
                     "Automatically resetting to defaults...");
         }
-        //return;
+        // return;
     }
 
     for (BetterSMS::ModuleInfo &init : gModuleInfos) {
