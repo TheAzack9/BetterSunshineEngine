@@ -23,6 +23,10 @@
 #include "p_icons.hxx"
 #include "settings.hxx"
 
+#define SCROLL_MAX_SPEED 32.0f
+#define SCROLL_MIN_SPEED 8.0f
+#define SCROLL_ACCEL     0.5f;
+
 using namespace BetterSMS;
 
 void InitCard();
@@ -31,6 +35,19 @@ s32 UpdateSavedSettings(Settings::SettingsGroup &group, CARDFileInfo *finfo);
 s32 ReadSavedSettings(Settings::SettingsGroup &group, CARDFileInfo *finfo);
 s32 CloseSavedSettings(const Settings::SettingsGroup &group, CARDFileInfo *finfo);
 s32 SaveAllSettings();
+
+const u8 SMS_ALIGN(32) gBricks[] = {
+    0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x01, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
+    0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0,
+    0x00, 0x00, 0x00, 0x00, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff,
+    0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0,
+    0x00, 0x00, 0x00, 0x00, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff,
+    0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0,
+    0x00, 0x00, 0x00, 0x00, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff,
+    0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0,
+    0x00, 0x00, 0x00, 0x00, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff,
+};
 
 const u8 SMS_ALIGN(32) gSaveBnr[] = {
     0x09, 0x00, 0x00, 0x60, 0x00, 0x20, 0x00, 0x00, 0x01, 0x02, 0x00, 0xd0, 0x00, 0x00, 0x0c, 0x20,
@@ -497,8 +514,8 @@ public:
     SettingsScreen(TMarioGamePad *controller)
         : TViewObj("<SettingsScreen>"), mScreen(nullptr), mController(controller),
           mShineIcon(nullptr), mCurrentTextBox(nullptr), mGroupID(0), mSettingID(0), mGroups(),
-          mGameSettingsTitle(nullptr), mGroupTitle(nullptr), mPrevHint(nullptr),
-          mNextHint(nullptr) {
+          mGameSettingsTitle(nullptr), mGroupTitle(nullptr), mPrevHint(nullptr), mNextHint(nullptr),
+          mScroll(0.0f), mScrollAcc(0.0f) {
         mShineAnimator = SimpleTexAnimator(sLoadingIconTIMGs, 16);
     }
 
@@ -572,6 +589,20 @@ public:
     }
 
 private:
+    void scrollIntoView() {
+        f32 offsetY = mSettingID * 21.0f;
+        f32 minY    = offsetY + mCurrentGroupInfo->mGroupPane->mRect.mY1;
+
+        f32 height =
+            mCurrentGroupInfo->mGroupPane->mRect.mY2 - mCurrentGroupInfo->mGroupPane->mRect.mY1;
+        if (minY < 0.0) {
+            mScroll = offsetY;
+        }
+        if (minY > 230.0f) {
+            mScroll = offsetY - 230.0f;
+        }
+    }
+
     void processInput() {
         if (mDirector->mState != SettingsDirector::State::CONTROL) {
             return;
@@ -592,6 +623,7 @@ private:
                     if (settingInfo->mSettingData->isUserEditable()) {
                         mCurrentSettingInfo = settingInfo;
                         mSettingID          = i;
+                        scrollIntoView();
                         break;
                     }
                 }
@@ -603,6 +635,7 @@ private:
                     if (settingInfo->mSettingData->isUserEditable()) {
                         mCurrentSettingInfo = settingInfo;
                         mSettingID          = i;
+                        scrollIntoView();
                         break;
                     }
                 }
@@ -674,6 +707,42 @@ private:
             }
         }
 
+        // Settings scroll
+        {
+            if (mController->mButtons.mInput & (TMarioGamePad::CSTICK_DOWN)) {
+                if (mScrollAcc <= 0.0f)
+                    mScrollAcc = SCROLL_MIN_SPEED;
+                mScrollAcc += SCROLL_ACCEL;
+            } else if (mController->mButtons.mInput & (TMarioGamePad::CSTICK_UP)) {
+                if (mScrollAcc >= 0.0f)
+                    mScrollAcc = -SCROLL_MIN_SPEED;
+                mScrollAcc -= SCROLL_ACCEL;
+            } else {
+                mScrollAcc = 0.0f;
+            }
+
+            if (mScrollAcc > SCROLL_MAX_SPEED)
+                mScrollAcc = SCROLL_MAX_SPEED;
+            if (mScrollAcc < -SCROLL_MAX_SPEED)
+                mScrollAcc = -SCROLL_MAX_SPEED;
+
+            mScroll += mScrollAcc;
+            // TODO: Max bounds
+            mCurrentGroupInfo = getGroupInfo(mGroupID);
+            f32 calcHeight = 21.0f * (mCurrentGroupInfo->mSettingGroup->getSettings().size() - 1);
+            if (mScroll > calcHeight - 230.0f) {
+                mScroll = calcHeight - 230.0f;
+            }
+            if (mScroll < 0.0f) {
+                mScroll = 0.0f;
+            }
+            f32 height =
+                mCurrentGroupInfo->mGroupPane->mRect.mY2 - mCurrentGroupInfo->mGroupPane->mRect.mY1;
+
+            mCurrentGroupInfo->mGroupPane->mRect.mY1 = -mScroll;
+            mCurrentGroupInfo->mGroupPane->mRect.mY2 = -mScroll + height;
+        }
+
         if ((mController->mButtons.mFrameInput & TMarioGamePad::B)) {
             mDirector->mState = SettingsDirector::State::SAVE_START;
         }
@@ -708,6 +777,8 @@ private:
     J2DTextBox *mGroupTitle;
     J2DTextBox *mNextHint;
     J2DTextBox *mPrevHint;
+    f32 mScroll;
+    f32 mScrollAcc;
 };
 
 class IntSettingPanel : public JDrama::TViewObj {

@@ -754,16 +754,6 @@ void SettingsDirector::initializeDramaHierarchy() {
         stageObjGroup->mViewObjList.insert(stageObjGroup->mViewObjList.end(), group2DParticle);
     }
 
-    auto *groupGrad = new JDrama::TViewObjPtrListT<JDrama::TViewObj>("Group Grad");
-    {
-        mGradBG = new TSelectGrad("<TSelectGrad>");
-        mGradBG->setStageColor(1);
-
-        groupGrad->mViewObjList.insert(groupGrad->mViewObjList.end(), mGradBG);
-
-        rootObjGroup->mViewObjList.insert(rootObjGroup->mViewObjList.end(), groupGrad);
-    }
-
     {
         auto *stageDisp = new JDrama::TDStageDisp("<DStageDisp>", {0});
 
@@ -772,20 +762,6 @@ void SettingsDirector::initializeDramaHierarchy() {
 
         rootObjGroup->mViewObjList.insert(rootObjGroup->mViewObjList.end(), stageDisp);
         stageObjGroup->mViewObjList.insert(stageObjGroup->mViewObjList.end(), stageDisp);
-    }
-
-    {
-        auto *screen = new JDrama::TScreen(screenRect, "Screen Grad");
-
-        auto *orthoProj                = new JDrama::TOrthoProj();
-        orthoProj->mProjectionField[0] = -BetterSMS::getScreenRatioAdjustX();
-        orthoProj->mProjectionField[2] = 600.0f + BetterSMS::getScreenRatioAdjustX();
-        screen->assignCamera(orthoProj);
-
-        screen->assignViewObj(groupGrad);
-
-        rootObjGroup->mViewObjList.insert(rootObjGroup->mViewObjList.end(), screen);
-        stageObjGroup->mViewObjList.insert(stageObjGroup->mViewObjList.end(), screen);
     }
 
     {
@@ -822,6 +798,28 @@ void SettingsDirector::initializeSettingsLayout() {
 
     mSettingScreen->mScreen =
         new J2DScreen(8, 'ROOT', {0, 0, screenOrthoWidth, screenRenderHeight});
+
+    JUTTexture *bg_texture      = new JUTTexture();
+    bg_texture->mTexObj2.val[2] = 0;
+    bg_texture->storeTIMG(GetResourceTextureHeader(gBricks));
+    bg_texture->_50 = false;
+
+    *(u16 *)((u32)bg_texture + 0x3C) = 64;
+    *(u16 *)((u32)bg_texture + 0x3E) = 64;
+
+    J2DPicture *screenBackground =
+        new J2DPicture('snbg', {-screenAdjustX, 0, screenOrthoWidth, screenRenderHeight});
+
+    screenBackground->insert(bg_texture, 0, 1.0f);
+    screenBackground->mIsVisible    = true;
+    screenBackground->mBinding      = 10;
+    screenBackground->_134          = WrapRepeat;
+    screenBackground->_138          = WrapRepeat;
+    screenBackground->mRect         = {-screenAdjustX, 0, screenOrthoWidth, screenRenderHeight};
+    screenBackground->mAlpha        = 64;
+    screenBackground->mColorMask    = {0, 124, 141, 255};
+    screenBackground->mColorOverlay = {0, 0, 0, 255};
+    mSettingScreen->mScreen->mChildrenList.append(&screenBackground->mPtrLink);
 
     // Game settings
 
