@@ -932,15 +932,15 @@ void SettingsDirector::initializeSettingsLayout() {
         maskTop->mColorOverlay    = {0, 0, 0, 255};
         maskBottom->mColorOverlay = {0, 0, 0, 255};
 
-        maskTop->mVertexColors[0] = {0, 0, 0, 100};
-        maskTop->mVertexColors[1] = {0, 0, 0, 100};
+        maskTop->mVertexColors[0] = {0, 0, 0, 255};
+        maskTop->mVertexColors[1] = {0, 0, 0, 255};
         maskTop->mVertexColors[2] = {0, 0, 0, 255};
         maskTop->mVertexColors[3] = {0, 0, 0, 255};
 
         maskBottom->mVertexColors[0] = {0, 0, 0, 255};
         maskBottom->mVertexColors[1] = {0, 0, 0, 255};
-        maskBottom->mVertexColors[2] = {0, 0, 0, 100};
-        maskBottom->mVertexColors[3] = {0, 0, 0, 100};
+        maskBottom->mVertexColors[2] = {0, 0, 0, 255};
+        maskBottom->mVertexColors[3] = {0, 0, 0, 255};
 
         mSettingScreen->mScreen->mChildrenList.append(&maskTop->mPtrLink);
         mSettingScreen->mScreen->mChildrenList.append(&maskBottom->mPtrLink);
@@ -995,6 +995,43 @@ void SettingsDirector::initializeSettingsLayout() {
              static_cast<int>(getScreenOrthoWidth() - 20), 90},
             gpSystemFont->mFont, "Next >", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
         mSettingScreen->mScreen->mChildrenList.append(&mSettingScreen->mNextHint->mPtrLink);
+
+        char *descriptionTextBufShadow = new char[200];
+        memset(descriptionTextBufShadow, 0, 200);
+        snprintf(descriptionTextBufShadow, 200, " ");
+        mSettingScreen->mDescriptionShadow =
+            new J2DTextBox('dess',
+                           {static_cast<int>(600.0f / 2.0f - 150.0f - getScreenRatioAdjustX() + 2),
+                            screenRenderHeight - 120 + 2,
+                            static_cast<int>(600.0f / 2.0f + 150.0f + getScreenRatioAdjustX() + 2),
+                            screenRenderHeight + 2},
+                           gpSystemFont->mFont, descriptionTextBufShadow,
+                           J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
+        mSettingScreen->mDescriptionShadow->mCharSizeX      = 18;
+        mSettingScreen->mDescriptionShadow->mCharSizeY      = 18;
+        mSettingScreen->mDescriptionShadow->mNewlineSize    = 18;
+        mSettingScreen->mDescriptionShadow->mGradientBottom = {0, 0, 0, 255};
+        mSettingScreen->mDescriptionShadow->mGradientTop    = {0, 0, 0, 255};
+        mSettingScreen->mScreen->mChildrenList.append(
+            &mSettingScreen->mDescriptionShadow->mPtrLink);
+
+        char *descriptionTextBuf = new char[200];
+        memset(descriptionTextBuf, 0, 200);
+        snprintf(descriptionTextBuf, 200, " ");
+
+        mSettingScreen->mDescription =
+            new J2DTextBox('desc',
+                           {static_cast<int>(600.0f / 2.0f - 150.0f - getScreenRatioAdjustX()),
+                            screenRenderHeight - 120,
+                            static_cast<int>(600.0f / 2.0f + 150.0f + getScreenRatioAdjustX()),
+                            screenRenderHeight},
+                           gpSystemFont->mFont, descriptionTextBuf, J2DTextBoxHBinding::Center,
+                           J2DTextBoxVBinding::Center);
+        mSettingScreen->mDescription->mCharSizeX   = 18;
+        mSettingScreen->mDescription->mCharSizeY   = 18;
+        mSettingScreen->mDescription->mNewlineSize = 18;
+
+        mSettingScreen->mScreen->mChildrenList.append(&mSettingScreen->mDescription->mPtrLink);
     }
 }
 

@@ -63,9 +63,13 @@ namespace BetterSMS {
         public:
             SingleSetting() = delete;
             SingleSetting(const char *name, void *valuePtr)
+                : SingleSetting(name, valuePtr, nullptr) {}
+
+            SingleSetting(const char *name, void *valuePtr, const char *description)
                 : mName(name), mValuePtr(valuePtr), mIsUserEditable(true),
                   mEditPriority(Priority::MODE) {
                 mValueChangedCB = nullptr;
+                mDescription    = description;
             }
             virtual ~SingleSetting() {}
 
@@ -90,6 +94,9 @@ namespace BetterSMS {
 
             const char *getName() const { return mName; }
             void setName(const char *name) { mName = name; }
+
+            const char *getDescription() const { return mDescription; }
+            void setDescription(const char *description) { mDescription = description; }
 
             void *getValue() const { return mValuePtr; }
             bool getBool() const { return *reinterpret_cast<bool *>(mValuePtr); }
@@ -155,12 +162,15 @@ namespace BetterSMS {
             bool mIsUserEditable;
             Priority mEditPriority;
             ValueChangedCallback mValueChangedCB;
+            const char *mDescription;
         };
 
         class BoolSetting : public SingleSetting {
         public:
             BoolSetting() = delete;
             BoolSetting(const char *name, void *valuePtr) : SingleSetting(name, valuePtr) {}
+            BoolSetting(const char *name, void *valuePtr, const char *description)
+                : SingleSetting(name, valuePtr, description) {}
             ~BoolSetting() override {}
 
             ValueKind getKind() const override { return ValueKind::BOOL; }
@@ -184,6 +194,8 @@ namespace BetterSMS {
         public:
             SwitchSetting() = delete;
             SwitchSetting(const char *name, void *valuePtr) : BoolSetting(name, valuePtr) {}
+            SwitchSetting(const char *name, void *valuePtr, const char *description)
+                : BoolSetting(name, valuePtr, description) {}
             ~SwitchSetting() override {}
 
             void getValueName(char *dst) const override {
@@ -194,8 +206,9 @@ namespace BetterSMS {
         class IntSetting : public SingleSetting {
         public:
             IntSetting() = delete;
-            IntSetting(const char *name, void *valuePtr)
-                : SingleSetting(name, valuePtr) {
+            IntSetting(const char *name, void *valuePtr) : IntSetting(name, valuePtr, nullptr) {}
+            IntSetting(const char *name, void *valuePtr, const char *description)
+                : SingleSetting(name, valuePtr, description) {
                 mValueRange.mStart = -2147483647;
                 mValueRange.mStop  = 2147483647;
                 mValueRange.mStep  = 1;
@@ -242,8 +255,12 @@ namespace BetterSMS {
         class FloatSetting : public SingleSetting {
         public:
             FloatSetting() = delete;
+
             FloatSetting(const char *name, void *valuePtr)
-                : SingleSetting(name, valuePtr) {
+                : FloatSetting(name, valuePtr, nullptr) {}
+
+            FloatSetting(const char *name, void *valuePtr, const char *description)
+                : SingleSetting(name, valuePtr, description) {
                 mValueRange.mStart = -3.40282347e+38f;
                 mValueRange.mStop  = 3.40282347e+38f;
                 mValueRange.mStep  = 1.0f;
@@ -316,7 +333,8 @@ namespace BetterSMS {
         public:
             SettingsGroup() = delete;
             SettingsGroup(u8 major, u8 minor, Priority prio)
-                : mModule(), mVersion((major << 8) | minor), mIOValid(true), mOrderPriority(prio), mSettings() {}
+                : mModule(), mVersion((major << 8) | minor), mIOValid(true), mOrderPriority(prio),
+                  mSettings() {}
             SettingsGroup(u8 major, u8 minor, const SettingsList &settings, Priority prio)
                 : mModule(), mVersion((major << 8) | minor), mIOValid(true), mOrderPriority(prio),
                   mSettings(settings) {}

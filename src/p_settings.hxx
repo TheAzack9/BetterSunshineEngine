@@ -515,7 +515,7 @@ public:
         : TViewObj("<SettingsScreen>"), mScreen(nullptr), mController(controller),
           mShineIcon(nullptr), mCurrentTextBox(nullptr), mGroupID(0), mSettingID(0), mGroups(),
           mGameSettingsTitle(nullptr), mGroupTitle(nullptr), mPrevHint(nullptr), mNextHint(nullptr),
-          mScroll(0.0f), mScrollAcc(0.0f) {
+          mDescription(nullptr), mDescriptionShadow(nullptr), mScroll(0.0f), mScrollAcc(0.0f) {
         mShineAnimator = SimpleTexAnimator(sLoadingIconTIMGs, 16);
     }
 
@@ -638,6 +638,19 @@ private:
                         scrollIntoView();
                         break;
                     }
+                }
+            }
+
+            if (currentID != mSettingID) {
+                if (mCurrentSettingInfo != nullptr &&
+                    mCurrentSettingInfo->mSettingData->getDescription() != nullptr) {
+                    snprintf(mDescriptionShadow->mStrPtr, 200, "%s",
+                             mCurrentSettingInfo->mSettingData->getDescription());
+                    snprintf(mDescription->mStrPtr, 200, "%s",
+                             mCurrentSettingInfo->mSettingData->getDescription());
+                } else {
+                    snprintf(mDescriptionShadow->mStrPtr, 200, " ");
+                    snprintf(mDescription->mStrPtr, 200, " ");
                 }
             }
         }
@@ -777,6 +790,8 @@ private:
     J2DTextBox *mGroupTitle;
     J2DTextBox *mNextHint;
     J2DTextBox *mPrevHint;
+    J2DTextBox *mDescription;
+    J2DTextBox *mDescriptionShadow;
     f32 mScroll;
     f32 mScrollAcc;
 };
