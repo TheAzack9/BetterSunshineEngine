@@ -1039,7 +1039,7 @@ void SettingsDirector::initializeSettingsLayout() {
             'more',
             {static_cast<int>(470 + getScreenRatioAdjustX()), screenRenderHeight - 90,
              static_cast<int>(getScreenOrthoWidth() - 20), screenRenderHeight},
-            gpSystemFont->mFont, "@ More...", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+            gpSystemFont->mFont, "@ Change", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
         mSettingScreen->mScreen->mChildrenList.append(&moreLabel->mPtrLink);
 
         mSettingScreen->mPrevHint = new J2DTextBox(
@@ -1381,9 +1381,9 @@ namespace BetterSMS {
                     }
                     mSettingPane->mChildrenList.append(&cancelText->mPtrLink);
 
-                    J2DTextBox *applyText = new J2DTextBox(
-                        'aply', {20, 250, 380, 270}, gpSystemFont->mFont, "@ Apply Changes",
-                        J2DTextBoxHBinding::Right, J2DTextBoxVBinding::Center);
+                    J2DTextBox *applyText =
+                        new J2DTextBox('aply', {20, 250, 380, 270}, gpSystemFont->mFont, "@ Apply",
+                                       J2DTextBoxHBinding::Right, J2DTextBoxVBinding::Center);
                     {
                         applyText->mCharSizeX = 21;
                         applyText->mCharSizeY = 24;
