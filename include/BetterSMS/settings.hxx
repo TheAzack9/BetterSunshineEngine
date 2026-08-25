@@ -38,6 +38,9 @@ namespace BetterSMS {
     bool isCameraInvertedY();
 }  // namespace BetterSMS
 
+class SettingsScreen;
+class SettingsDirector;
+
 namespace BetterSMS {
 
     struct ModuleInfo;
@@ -46,6 +49,7 @@ namespace BetterSMS {
         enum class Priority { CORE, GAME, MODE };
 
         class SettingsGroup;
+        class SingleSetting;
 
 #pragma region SettingImplementation
 
@@ -53,6 +57,64 @@ namespace BetterSMS {
             T mStart;
             T mStop;
             T mStep;
+        };
+
+        class SettingsWidget : public JDrama::TViewObj {
+        protected:
+            SettingsWidget()
+                : TViewObj("<SettingsWidget>"), mSettingRef(nullptr), mAnimatedPane(nullptr),
+                  mDirector(nullptr), mController(nullptr), mScreen(nullptr), mSettingPane(nullptr),
+                  mDissapearing(false) {}
+
+        public:
+            friend class ::SettingsDirector;
+            virtual void initializeLayout(SettingsDirector *director, TMarioGamePad *controller);
+
+            virtual void perform(u32 flags, JDrama::TGraphics *graphics) override;
+
+            virtual bool isAnimating() const {
+                return mAnimatedPane->mActive == true &&
+                       mAnimatedPane->mCurrentInterpolate > 0.0f &&
+                       mAnimatedPane->mCurrentInterpolate < 1.0f;
+            }
+
+            virtual bool shouldAppear() = 0;
+            virtual void appear();
+            virtual void disappear();
+
+        protected:
+            virtual void processInput()        = 0;
+            virtual void initializeContainer() = 0;
+
+            SingleSetting *mSettingRef  = nullptr;
+            TBoundPane *mAnimatedPane   = nullptr;
+            SettingsDirector *mDirector = nullptr;
+            TMarioGamePad *mController  = nullptr;
+            J2DScreen *mScreen          = nullptr;
+            J2DPane *mSettingPane       = nullptr;
+            bool mDissapearing          = false;
+        };
+
+        class BetterSunshineEngineSettingsWidget : SettingsWidget {
+        public:
+            BetterSunshineEngineSettingsWidget() : SettingsWidget() {}
+
+        private:
+            int buildValue() const;
+            void applySetting();
+            virtual void perform(u32 flags, JDrama::TGraphics *graphics) override;
+            virtual void processInput() override;
+            virtual void initializeContainer() override;
+            virtual bool shouldAppear() override;
+            virtual void appear() override;
+
+        private:
+            s32 mDigitIndex             = 9;
+            s8 mValue[10]               = {};
+            bool mIsNegative            = false;
+            J2DTextBox *mSettingTextBox = nullptr;
+            J2DTextBox *mValueTextBox   = nullptr;
+            J2DTextBox *mDigitSelector  = nullptr;
         };
 
         class SingleSetting {
@@ -67,9 +129,10 @@ namespace BetterSMS {
 
             SingleSetting(const char *name, void *valuePtr, const char *description)
                 : mName(name), mValuePtr(valuePtr), mIsUserEditable(true),
-                  mEditPriority(Priority::MODE) {
+                  mEditPriority(Priority::MODE), mWidgetId(0) {
                 mValueChangedCB = nullptr;
                 mDescription    = description;
+                mWidgetId       = 0;
             }
             virtual ~SingleSetting() {}
 
@@ -97,6 +160,9 @@ namespace BetterSMS {
 
             const char *getDescription() const { return mDescription; }
             void setDescription(const char *description) { mDescription = description; }
+
+            u8 getWidgetId() const { return 0; }
+            void setWidgetId(u8 widgetId) { mWidgetId = widgetId; }
 
             void *getValue() const { return mValuePtr; }
             bool getBool() const { return *reinterpret_cast<bool *>(mValuePtr); }
@@ -163,6 +229,7 @@ namespace BetterSMS {
             Priority mEditPriority;
             ValueChangedCallback mValueChangedCB;
             const char *mDescription;
+            u8 mWidgetId;
         };
 
         class BoolSetting : public SingleSetting {
@@ -401,6 +468,9 @@ namespace BetterSMS {
         s32 loadSettingsGroup(SettingsGroup &group);
         bool saveAllSettings();
         bool loadAllSettings();
+
+        typedef SettingsWidget *(*SettingsWidgetInitCallback)();
+        u8 registerWidget(SettingsWidgetInitCallback);
 #pragma endregion
     }  // namespace Settings
 }  // namespace BetterSMS

@@ -8,9 +8,9 @@
 #include <SMS/macros.h>
 #include <sdk.h>
 
+#include "libs/optional.hxx"
 #include "memory.hxx"
 #include "settings.hxx"
-#include "libs/optional.hxx"
 
 #define BETTER_SMS_MODULE_NAME "Better Sunshine Engine"
 #define BETTER_SMS_AUTHOR_NAME "JoshuaMK"
@@ -37,11 +37,9 @@
 #endif
 
 #if SMS_DEBUG
-#define BETTER_SMS_VERSION_TAG                                                                     \
-     BETTER_SMS_VERSION " (DEBUG)"
+#define BETTER_SMS_VERSION_TAG BETTER_SMS_VERSION " (DEBUG)"
 #else
-#define BETTER_SMS_VERSION_TAG                                                                     \
-    BETTER_SMS_VERSION " (RELEASE)"
+#define BETTER_SMS_VERSION_TAG BETTER_SMS_VERSION " (RELEASE)"
 #endif
 
 /* CONFIGURATION DEFINES */
@@ -71,7 +69,10 @@ namespace BetterSMS {
     class BugsSetting final : public Settings::SwitchSetting {
     public:
         BugsSetting(const char *name)
-            : SwitchSetting(name, &mBugsValue), mBugsValue(true), mIsUnlocked(true) {}
+            : SwitchSetting(name, &mBugsValue,
+                            "Fixes game breaking bugs like Rocket storage, yoshi clipping under "
+                            "shallow water, hard coded sea.bmd, etc"),
+              mBugsValue(true), mIsUnlocked(true) {}
         ~BugsSetting() override {}
 
         bool isUnlocked() const override { return mIsUnlocked; }
@@ -100,8 +101,9 @@ namespace BetterSMS {
     class CollisionFixesSetting final : public Settings::SwitchSetting {
     public:
         CollisionFixesSetting(const char *name)
-            : SwitchSetting(name, &mCollisionFixesFlag), mCollisionFixesFlag(true),
-              mIsUnlocked(true) {
+            : SwitchSetting(name, &mCollisionFixesFlag,
+                            "Improves collision handling, fixing a lot of janky wall clips."),
+              mCollisionFixesFlag(true), mIsUnlocked(true) {
             mValueChangedCB = CollisionFixesSetting::valueChanged;
         }
 
@@ -124,8 +126,7 @@ namespace BetterSMS {
         inline void unlock() { mIsUnlocked = true; }
 
     private:
-        static void valueChanged(void *old, void *cur, ValueKind kind) {
-        }
+        static void valueChanged(void *old, void *cur, ValueKind kind) {}
 
         bool mIsUnlocked;
         bool mCollisionFixesFlag;

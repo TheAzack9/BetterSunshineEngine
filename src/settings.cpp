@@ -58,6 +58,9 @@ static SMS_ALIGN(32) char sCardBuffer[CARD_BLOCKS_TO_BYTES(CARD_MAX_BLOCKS)];
 static bool sIsMounted = false;
 static s32 sChannel    = 0;
 
+static Settings::SettingsWidgetInitCallback sWidgetsInit[16];
+static u8 sWidgetCount = 0;
+
 static void detachCallback_(s32 channel, s32 res) { sIsMounted = false; }
 
 BETTER_SMS_FOR_EXPORT const char *Settings::getGroupName(const Settings::SettingsGroup &group) {
@@ -210,6 +213,13 @@ BETTER_SMS_FOR_EXPORT bool Settings::loadAllSettings() {
     }
 
     return true;
+}
+
+u8 BetterSMS::Settings::registerWidget(SettingsWidgetInitCallback cb) {
+    u8 newId            = sWidgetCount;
+    sWidgetsInit[newId] = cb;
+    sWidgetCount++;
+    return newId;
 }
 
 #define DISK_GAME_ID (void *)0x80000000
@@ -557,8 +567,6 @@ s32 SettingsDirector::direct() {
 
     int *joinBuf[2];
 
-    // mController->read();
-    // mController->updateMeaning();
     TSMSFader *fader = gpApplication.mFader;
     if (fader->mFadeStatus == TSMSFader::FADE_OFF) {
         mSettingScreen->mController->mState._06        = true;  // Disable camera processing
@@ -591,15 +599,33 @@ s32 SettingsDirector::direct() {
         mSettingScreen->mPerformFlags &= ~0b0001;  // Enable input by default;
         mSaveErrorPanel->mPerformFlags |= 0b1011;  // Disable view and input by default
 
-        if (!mIntSettingPanel->isAnimating()) {
-            mIntSettingPanel->mPerformFlags |= 0b1011;  // Disable view and input by default
+        // Disable view and input by default
+        for (int i = 0; i < 16; ++i) {
+            if (mSettingsWidgets[i] == nullptr)
+                continue;
+            mSettingsWidgets[i]->mPerformFlags |= 0b1011;
         }
         break;
     }
     case State::CONTROL_SETTING:
-        mSettingScreen->mPerformFlags |= 0b0001;     // Disable input
-        mSaveErrorPanel->mPerformFlags |= 0b1011;    // Disable view and input
-        mIntSettingPanel->mPerformFlags &= ~0b1011;  // Enable view and input
+        mSettingScreen->mPerformFlags |= 0b0001;   // Disable input
+        mSaveErrorPanel->mPerformFlags |= 0b1011;  // Disable view and input
+        // Disable view and input by default
+        for (int i = 0; i < 16; ++i) {
+            if (mSettingsWidgets[i] == nullptr)
+                continue;
+            mSettingsWidgets[i]->mPerformFlags |= 0b1011;
+        }
+        if (mActiveWidget != nullptr) {
+            mActiveWidget->mPerformFlags &= ~0b1011;  // Enable view and input
+            if (mDisappearingWidget) {
+                if (!mActiveWidget->isAnimating()) {
+                    mState              = State::CONTROL;
+                    mActiveWidget       = nullptr;
+                    mDisappearingWidget = false;
+                }
+            }
+        }
         break;
     case State::SAVE_START:
         mSaveErrorPanel->appear();
@@ -608,7 +634,12 @@ s32 SettingsDirector::direct() {
     case State::SAVE_BUSY:
         mSettingScreen->mPerformFlags |= 0b0001;    // Disable input
         mSaveErrorPanel->mPerformFlags &= ~0b1011;  // Enable view and input
-        mIntSettingPanel->mPerformFlags |= 0b1011;  // Disable view and input
+        // Disable view and input by default
+        for (int i = 0; i < 16; ++i) {
+            if (mSettingsWidgets[i] == nullptr)
+                continue;
+            mSettingsWidgets[i]->mPerformFlags |= 0b1011;
+        }
         break;
     case State::SAVE_FAIL:
         [[fallthrough]];
@@ -624,44 +655,44 @@ s32 SettingsDirector::direct() {
     return ret;
 }
 
-bool SettingsDirector::switchToControl(Control ctrl) {
-    switch (ctrl) {
-    case Control::SETTINGS: {
-        if (mState == State::CONTROL_SETTING) {
-            mIntSettingPanel->disappear();
+bool SettingsDirector::switchToWidget(u8 widgetId) {
+    Settings::SettingsWidget *widget = mSettingsWidgets[widgetId];
+    if (widget != nullptr) {
+        if (mActiveWidget != nullptr && widget != mActiveWidget) {
+            mActiveWidget->disappear();
         }
 
-        mState = State::CONTROL;
-        return true;
-    }
-    case Control::INT_SETTING: {
-        if (mIntSettingPanel->isAnimating()) {
+        if (widget->isAnimating())
+            return false;
+
+        if (mSettingScreen->mCurrentSettingInfo == nullptr ||
+            !mSettingScreen->mCurrentSettingInfo->mSettingData->isUserEditable()) {
             return false;
         }
 
-        bool currentSettingInteractive =
-            mSettingScreen->mCurrentSettingInfo &&
-            mSettingScreen->mCurrentSettingInfo->mSettingData->isUserEditable();
+        widget->mSettingRef = mSettingScreen->mCurrentSettingInfo->mSettingData;
 
-        if ((currentSettingInteractive)) {
-            switch (mSettingScreen->mCurrentSettingInfo->mSettingData->getKind()) {
-            case Settings::SingleSetting::ValueKind::INT:
-                mState = State::CONTROL_SETTING;
-                mIntSettingPanel->appear();
-                mIntSettingPanel->digestSetting(mSettingScreen->mCurrentSettingInfo->mSettingData);
-                return true;
-            default:
-                break;
-            }
-        }
+        if (!widget->shouldAppear())
+            return false;
 
-        return false;
-    }
-    case Control::SAVE_ERROR: {
-        mState = State::SAVE_START;
+        widget->appear();
+
+        mActiveWidget = widget;
+        mState        = State::CONTROL_SETTING;
+
         return true;
     }
+
+    return false;
+}
+
+bool SettingsDirector::unloadWidget() {
+    if (mActiveWidget != nullptr) {
+        mActiveWidget->disappear();
+        mDisappearingWidget = true;
+        return true;
     }
+    return false;
 }
 
 void SettingsDirector::setup(JDrama::TDisplay *display, TMarioGamePad *controller) {
@@ -670,6 +701,7 @@ void SettingsDirector::setup(JDrama::TDisplay *display, TMarioGamePad *controlle
     mController                    = controller;
     mController->mState.mReadInput = false;
     mController->mState._02        = true;
+    mActiveWidget                  = nullptr;
     SMSRumbleMgr->reset();
     OSCreateThread(&gSetupThread, setupThreadFunc, this, gpSetupThreadStack + 0x10000, 0x10000, 17,
                    0);
@@ -714,7 +746,10 @@ void SettingsDirector::initialize() {
     initializeDramaHierarchy();
     initializeSettingsLayout();
     initializeErrorLayout();
-    initializeIntSettingLayout();
+
+    JDrama::TViewObjPtrListT<JDrama::TViewObj> *group2D =
+        (JDrama::TViewObjPtrListT<JDrama::TViewObj> *)mViewObjRoot->search("Group 2D");
+    initializeSettingsWidgetLayouts(group2D);
 }
 
 void SettingsDirector::initializeDramaHierarchy() {
@@ -732,10 +767,6 @@ void SettingsDirector::initializeDramaHierarchy() {
         mSaveErrorPanel = new SaveErrorPanel(this, mController);
         mSaveErrorPanel->mPerformFlags |= 0b1011;  // Disable view and input by default
         group2D->mViewObjList.insert(group2D->mViewObjList.end(), mSaveErrorPanel);
-
-        mIntSettingPanel = new IntSettingPanel(this, mController);
-        mIntSettingPanel->mPerformFlags |= 0b1011;  // Disable view and input by default
-        group2D->mViewObjList.insert(group2D->mViewObjList.end(), mIntSettingPanel);
 
         rootObjGroup->mViewObjList.insert(rootObjGroup->mViewObjList.end(), group2D);
     }
@@ -849,48 +880,77 @@ void SettingsDirector::initializeSettingsLayout() {
             J2DPane *settingPane =
                 new J2DPane(19, ('q' << 24) | i, {0, 0, screenRenderWidth, screenRenderHeight});
 
-            J2DTextBox *settingText = new J2DTextBox(
-                ('s' << 24) | n, {0, 100 + (21 * ny), 600, 148 + (21 * ny)}, gpSystemFont->mFont,
+            J2DTextBox *settingKeyText = new J2DTextBox(
+                ('t' << 24) | n, {20, 100 + (21 * ny), 300, 148 + (21 * ny)}, gpSystemFont->mFont,
                 "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
 
-            J2DTextBox *settingTextBehind = new J2DTextBox(
-                ('b' << 24) | n, {2, 102 + (21 * ny), 602, 150 + (21 * ny)}, gpSystemFont->mFont,
+            J2DTextBox *settingKeyTextBehind = new J2DTextBox(
+                ('c' << 24) | n, {22, 102 + (21 * ny), 302, 150 + (21 * ny)}, gpSystemFont->mFont,
+                "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+
+            J2DTextBox *settingValueText = new J2DTextBox(
+                ('s' << 24) | n, {320, 100 + (21 * ny), 600, 148 + (21 * ny)}, gpSystemFont->mFont,
+                "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+
+            J2DTextBox *settingValueTextBehind = new J2DTextBox(
+                ('b' << 24) | n, {322, 102 + (21 * ny), 602, 150 + (21 * ny)}, gpSystemFont->mFont,
                 "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
             {
                 char valueTextbuf[40];
                 setting->getValueName(valueTextbuf);
 
-                char *settingTextBuf = new char[100];
-                memset(settingTextBuf, 0, 100);
-                snprintf(settingTextBuf, 100, "%s: %s", setting->getName(), valueTextbuf);
+                char *settingValueTextBuf = new char[100];
+                memset(settingValueTextBuf, 0, 100);
+                snprintf(settingValueTextBuf, 100, "[ %s ]", valueTextbuf);
+
+                char *settingKeyTextBuf = new char[100];
+                memset(settingKeyTextBuf, 0, 100);
+                snprintf(settingKeyTextBuf, 100, "%s", setting->getName());
 
                 const u8 alpha = setting->isUserEditable() ? 255 : 210;
                 const u8 color = setting->isUserEditable() ? 255 : 140;
 
-                settingText->mStrPtr         = settingTextBuf;
-                settingText->mCharSizeX      = 20;
-                settingText->mCharSizeY      = 18;
-                settingText->mNewlineSize    = 18;
-                settingText->mGradientBottom = {color, color, color, alpha};
-                settingText->mGradientTop    = {color, color, color, alpha};
+                settingKeyText->mStrPtr         = settingKeyTextBuf;
+                settingKeyText->mCharSizeX      = 20;
+                settingKeyText->mCharSizeY      = 18;
+                settingKeyText->mNewlineSize    = 18;
+                settingKeyText->mGradientBottom = {color, color, color, alpha};
+                settingKeyText->mGradientTop    = {color, color, color, alpha};
 
-                settingTextBehind->mStrPtr         = settingTextBuf;
-                settingTextBehind->mCharSizeX      = 20;
-                settingTextBehind->mCharSizeY      = 18;
-                settingTextBehind->mNewlineSize    = 18;
-                settingTextBehind->mGradientBottom = {0, 0, 0, alpha};
-                settingTextBehind->mGradientTop    = {0, 0, 0, alpha};
+                settingKeyTextBehind->mStrPtr         = settingKeyTextBuf;
+                settingKeyTextBehind->mCharSizeX      = 20;
+                settingKeyTextBehind->mCharSizeY      = 18;
+                settingKeyTextBehind->mNewlineSize    = 18;
+                settingKeyTextBehind->mGradientBottom = {0, 0, 0, alpha};
+                settingKeyTextBehind->mGradientTop    = {0, 0, 0, alpha};
 
-                settingPane->mChildrenList.append(&settingTextBehind->mPtrLink);
-                settingPane->mChildrenList.append(&settingText->mPtrLink);
+                settingPane->mChildrenList.append(&settingKeyTextBehind->mPtrLink);
+                settingPane->mChildrenList.append(&settingKeyText->mPtrLink);
 
-                ny += newlines(settingTextBuf) + 1;
+                settingValueText->mStrPtr         = settingValueTextBuf;
+                settingValueText->mCharSizeX      = 20;
+                settingValueText->mCharSizeY      = 18;
+                settingValueText->mNewlineSize    = 18;
+                settingValueText->mGradientBottom = {color, color, color, alpha};
+                settingValueText->mGradientTop    = {color, color, color, alpha};
+
+                settingValueTextBehind->mStrPtr         = settingValueTextBuf;
+                settingValueTextBehind->mCharSizeX      = 20;
+                settingValueTextBehind->mCharSizeY      = 18;
+                settingValueTextBehind->mNewlineSize    = 18;
+                settingValueTextBehind->mGradientBottom = {0, 0, 0, alpha};
+                settingValueTextBehind->mGradientTop    = {0, 0, 0, alpha};
+
+                settingPane->mChildrenList.append(&settingValueTextBehind->mPtrLink);
+                settingPane->mChildrenList.append(&settingValueText->mPtrLink);
+
+                ny += newlines(settingValueTextBuf) + 1;
             }
             groupPane->mChildrenList.append(&settingPane->mPtrLink);
 
             auto *settingInfo                = new SettingInfo();
-            settingInfo->mSettingTextBox     = settingText;
-            settingInfo->mSettingTextBoxBack = settingTextBehind;
+            settingInfo->mSettingTextBox     = settingValueText;
+            settingInfo->mSettingTextBoxBack = settingValueTextBehind;
             settingInfo->mSettingData        = setting;
             groupInfo->mSettingInfos.insert(groupInfo->mSettingInfos.end(), settingInfo);
 
@@ -1136,102 +1196,36 @@ void SettingsDirector::initializeErrorLayout() {
     }
 }
 
-void SettingsDirector::initializeIntSettingLayout() {
-    const int screenOrthoWidth   = BetterSMS::getScreenOrthoWidth();
-    const int screenRenderWidth  = BetterSMS::getScreenRenderWidth();
-    const int screenRenderHeight = 480;
-    const int screenAdjustX      = BetterSMS::getScreenRatioAdjustX();
+void SettingsDirector::initializeSettingsWidgetLayouts(
+    JDrama::TViewObjPtrListT<JDrama::TViewObj> *performList) {
 
-    mIntSettingPanel->mDirector = this;
+    for (int i = 0; i < 16; ++i)
+        mSettingsWidgets[i] = nullptr;
 
-    mIntSettingPanel->mScreen =
-        new J2DScreen(8, 'ROOT', {0, 0, screenOrthoWidth, screenRenderHeight});
-    {
-        JUTTexture *mask      = new JUTTexture();
-        mask->mTexObj2.val[2] = 0;
-        mask->storeTIMG(GetResourceTextureHeader(gMaskBlack));
-        mask->_50 = false;
+    TGlobalVector<Settings::SettingsGroup *> settingsGroups;
+    getSettingsGroups(settingsGroups);
 
-        J2DPane *rootPane = new J2DPane(19, 'root', {0, 0, 400, 280});
-        mIntSettingPanel->mScreen->mChildrenList.append(&rootPane->mPtrLink);
+    settingsGroups.insert(settingsGroups.begin(), &sSunshineSettingsGroup);
 
-        mIntSettingPanel->mAnimatedPane        = new TBoundPane(rootPane, {0, 0, 400, 280});
-        mIntSettingPanel->mAnimatedPane->mPane = rootPane;
+    for (auto &group : settingsGroups) {
+        for (auto &setting : group->getSettings()) {
+            u8 widgetId = setting->getWidgetId();
+            if (widgetId > sWidgetCount) {
+                OSReport("Setting with invalid widget '%s', widgetId %d\n", setting->getName(),
+                         widgetId);
+                continue;
+            }
 
-        J2DPicture *maskPanel = new J2DPicture('mask', {0, 0, 0, 0});
-        {
-            maskPanel->insert(mask, 0, 1.0f);
-            maskPanel->mRect            = {0, 0, 400, 280};
-            maskPanel->mAlpha           = 210;
-            maskPanel->mColorOverlay    = {0, 0, 0, 255};
-            maskPanel->mVertexColors[0] = {20, 0, 0, 255};
-            maskPanel->mVertexColors[1] = {20, 0, 0, 255};
-            maskPanel->mVertexColors[2] = {20, 0, 0, 255};
-            maskPanel->mVertexColors[3] = {20, 0, 0, 255};
+            if (mSettingsWidgets[widgetId] != nullptr)
+                continue;
+
+            mSettingsWidgets[widgetId] = sWidgetsInit[widgetId]();
+            mSettingsWidgets[widgetId]->initializeLayout(this, mController);
+            mSettingsWidgets[widgetId]->mPerformFlags |=
+                0b1011;  // Disable view and input by default
+            performList->mViewObjList.insert(performList->mViewObjList.end(),
+                                             mSettingsWidgets[widgetId]);
         }
-        rootPane->mChildrenList.append(&maskPanel->mPtrLink);
-
-        mIntSettingPanel->mSettingPane             = new J2DPane(19, 'sett', {0, 0, 400, 280});
-        mIntSettingPanel->mSettingPane->mIsVisible = true;
-        {
-            mIntSettingPanel->mSettingTextBox =
-                new J2DTextBox('name', {12, 16, 388, 40}, gpSystemFont->mFont, "",
-                               J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Top);
-            {
-                mIntSettingPanel->mSettingTextBox->mStrPtr         = (char *)"UNKNOWN";
-                mIntSettingPanel->mSettingTextBox->mCharSizeX      = 21;
-                mIntSettingPanel->mSettingTextBox->mCharSizeY      = 24;
-                mIntSettingPanel->mSettingTextBox->mGradientTop    = {190, 20, 160, 255};
-                mIntSettingPanel->mSettingTextBox->mGradientBottom = {190, 20, 160, 255};
-            }
-            mIntSettingPanel->mSettingPane->mChildrenList.append(
-                &mIntSettingPanel->mSettingTextBox->mPtrLink);
-
-            mIntSettingPanel->mValueTextBox =
-                new J2DTextBox('valu', {12, 40, 388, 240}, gpSystemFont->mFont, "",
-                               J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
-            {
-                mIntSettingPanel->mValueTextBox->mStrPtr         = (char *)"0000000000";
-                mIntSettingPanel->mValueTextBox->mCharSizeX      = 18;
-                mIntSettingPanel->mValueTextBox->mCharSizeY      = 21;
-                mIntSettingPanel->mValueTextBox->mGradientTop    = {255, 255, 255, 255};
-                mIntSettingPanel->mValueTextBox->mGradientBottom = {255, 255, 255, 255};
-            }
-            mIntSettingPanel->mSettingPane->mChildrenList.append(
-                &mIntSettingPanel->mValueTextBox->mPtrLink);
-
-            mIntSettingPanel->mDigitSelector =
-                new J2DTextBox('slct', {134, 150, 200, 180}, gpSystemFont->mFont, "",
-                               J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Top);
-            {
-                mIntSettingPanel->mDigitSelector->mStrPtr         = (char *)"^";
-                mIntSettingPanel->mDigitSelector->mCharSizeX      = 18;
-                mIntSettingPanel->mDigitSelector->mCharSizeY      = 23;
-                mIntSettingPanel->mDigitSelector->mGradientTop    = {20, 220, 20, 255};
-                mIntSettingPanel->mDigitSelector->mGradientBottom = {20, 220, 20, 255};
-            }
-            mIntSettingPanel->mSettingPane->mChildrenList.append(
-                &mIntSettingPanel->mDigitSelector->mPtrLink);
-
-            J2DTextBox *cancelText =
-                new J2DTextBox('cncl', {20, 250, 380, 270}, gpSystemFont->mFont, "# Cancel",
-                               J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
-            {
-                cancelText->mCharSizeX = 21;
-                cancelText->mCharSizeY = 24;
-            }
-            mIntSettingPanel->mSettingPane->mChildrenList.append(&cancelText->mPtrLink);
-
-            J2DTextBox *applyText =
-                new J2DTextBox('aply', {20, 250, 380, 270}, gpSystemFont->mFont, "@ Apply Changes",
-                               J2DTextBoxHBinding::Right, J2DTextBoxVBinding::Center);
-            {
-                applyText->mCharSizeX = 21;
-                applyText->mCharSizeY = 24;
-            }
-            mIntSettingPanel->mSettingPane->mChildrenList.append(&applyText->mPtrLink);
-        }
-        rootPane->mChildrenList.append(&mIntSettingPanel->mSettingPane->mPtrLink);
     }
 }
 
@@ -1334,6 +1328,351 @@ static s32 checkForSettingsMenu(TMarDirector *director) {
     return ret;
 }
 SMS_PATCH_BL(SMS_PORT_REGION(0x80299D0C, 0, 0, 0), checkForSettingsMenu);
+
+namespace BetterSMS {
+    namespace Settings {
+
+        void SettingsWidget::initializeLayout(SettingsDirector *director,
+                                              TMarioGamePad *controller) {
+            mDirector                    = director;
+            mController                  = controller;
+            const int screenOrthoWidth   = BetterSMS::getScreenOrthoWidth();
+            const int screenRenderWidth  = BetterSMS::getScreenRenderWidth();
+            const int screenRenderHeight = 480;
+            const int screenAdjustX      = BetterSMS::getScreenRatioAdjustX();
+
+            mScreen = new J2DScreen(8, 'ROOT', {0, 0, screenOrthoWidth, screenRenderHeight});
+            {
+                JUTTexture *mask      = new JUTTexture();
+                mask->mTexObj2.val[2] = 0;
+                mask->storeTIMG(GetResourceTextureHeader(gMaskBlack));
+                mask->_50 = false;
+
+                J2DPane *rootPane = new J2DPane(19, 'root', {0, 0, 400, 280});
+                mScreen->mChildrenList.append(&rootPane->mPtrLink);
+
+                mAnimatedPane        = new TBoundPane(rootPane, {0, 0, 400, 280});
+                mAnimatedPane->mPane = rootPane;
+
+                J2DPicture *maskPanel = new J2DPicture('mask', {0, 0, 0, 0});
+                {
+                    maskPanel->insert(mask, 0, 1.0f);
+                    maskPanel->mRect            = {0, 0, 400, 280};
+                    maskPanel->mAlpha           = 210;
+                    maskPanel->mColorOverlay    = {0, 0, 0, 255};
+                    maskPanel->mVertexColors[0] = {20, 0, 0, 255};
+                    maskPanel->mVertexColors[1] = {20, 0, 0, 255};
+                    maskPanel->mVertexColors[2] = {20, 0, 0, 255};
+                    maskPanel->mVertexColors[3] = {20, 0, 0, 255};
+                }
+                rootPane->mChildrenList.append(&maskPanel->mPtrLink);
+
+                mSettingPane             = new J2DPane(19, 'sett', {0, 0, 400, 280});
+                mSettingPane->mIsVisible = true;
+                {
+                    initializeContainer();
+
+                    J2DTextBox *cancelText =
+                        new J2DTextBox('cncl', {20, 250, 380, 270}, gpSystemFont->mFont, "# Cancel",
+                                       J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+                    {
+                        cancelText->mCharSizeX = 21;
+                        cancelText->mCharSizeY = 24;
+                    }
+                    mSettingPane->mChildrenList.append(&cancelText->mPtrLink);
+
+                    J2DTextBox *applyText = new J2DTextBox(
+                        'aply', {20, 250, 380, 270}, gpSystemFont->mFont, "@ Apply Changes",
+                        J2DTextBoxHBinding::Right, J2DTextBoxVBinding::Center);
+                    {
+                        applyText->mCharSizeX = 21;
+                        applyText->mCharSizeY = 24;
+                    }
+                    mSettingPane->mChildrenList.append(&applyText->mPtrLink);
+                }
+                rootPane->mChildrenList.append(&mSettingPane->mPtrLink);
+            }
+        }
+
+        void SettingsWidget::perform(u32 flags, JDrama::TGraphics *graphics) {
+            if ((flags & 0x1)) {
+                processInput();
+            }
+
+            if ((flags & 0x8)) {
+                ReInitializeGX();
+                SMS_DrawInit();
+
+                J2DOrthoGraph ortho(0, 0, BetterSMS::getScreenOrthoWidth(),
+                                    SMSGetTitleRenderHeight());
+                ortho.setup2D();
+
+                mAnimatedPane->update();
+                mScreen->draw(0, 0, &ortho);
+            }
+        };
+
+        void SettingsWidget::appear() {
+            const s32 midX = getScreenRenderWidth() / 2;
+            mAnimatedPane->setPanePosition(5, {100, 480}, {100, 200}, {100, 98});
+            mAnimatedPane->startAnimation();
+        }
+
+        void SettingsWidget::disappear() {
+            const s32 midX = getScreenRenderWidth() / 2;
+            mAnimatedPane->setPanePosition(5, {100, 98}, {100, 200}, {100, 480});
+            mAnimatedPane->startAnimation();
+        }
+
+        int BetterSunshineEngineSettingsWidget::buildValue() const {
+            int value = 0;
+            for (size_t i = 0; i < 10; ++i) {
+                value *= 10;
+                value += mValue[i];
+            }
+            return value * (mIsNegative ? -1 : 1);
+        }
+
+        void BetterSunshineEngineSettingsWidget::applySetting() {
+            if (!mSettingRef)
+                return;
+
+            mSettingRef->setInt(buildValue());
+            mDirector->getSettingsScreen()->refreshCurrent();
+        }
+
+        void BetterSunshineEngineSettingsWidget::perform(u32 flags, JDrama::TGraphics *graphics) {
+            SettingsWidget::perform(flags, graphics);
+            if ((flags & 0x3)) {
+                if (mSettingRef && buildValue() != mSettingRef->getInt()) {
+                    mValueTextBox->mGradientTop    = {180, 230, 10, 255};
+                    mValueTextBox->mGradientBottom = {240, 170, 10, 255};
+                } else {
+                    mValueTextBox->mGradientTop    = {255, 255, 255, 255};
+                    mValueTextBox->mGradientBottom = {255, 255, 255, 255};
+                }
+            }
+        }
+
+        void BetterSunshineEngineSettingsWidget::processInput() {
+            if (mDirector->getState() != SettingsDirector::State::CONTROL_SETTING) {
+                return;
+            }
+
+            if (mSettingRef->getKind() != Settings::SingleSetting::ValueKind::INT) {
+                mDirector->unloadWidget();
+                return;
+            }
+
+            Settings::IntSetting *intSetting = static_cast<Settings::IntSetting *>(mSettingRef);
+
+            if ((mController->mButtons.mFrameInput & TMarioGamePad::A)) {
+                mDirector->unloadWidget();
+                applySetting();
+                return;
+            } else if ((mController->mButtons.mFrameInput & TMarioGamePad::B)) {
+                mDirector->unloadWidget();
+                return;
+            }
+
+            // Calculate the bounds for each digit
+            // based on value range of setting.
+            const Settings::ValueRange<int> &range = intSetting->getValueRange();
+            int minVal                             = range.mStart;
+            int maxVal                             = range.mStop;
+
+            int maxDigits = 0;
+            int maxValCpy = maxVal;
+            for (int i = 0; i < 10; ++i) {
+                if (maxValCpy > 0) {
+                    maxValCpy /= 10;
+                    maxDigits++;
+                }
+            }
+
+            int minDigits = 0;
+            int minValCpy = minVal;
+            for (int i = 0; i < 10; ++i) {
+                if (minValCpy > 0) {
+                    minValCpy /= 10;
+                    minDigits++;
+                }
+            }
+
+            int digits = Max(maxDigits, minDigits);
+
+            // Process input
+            {
+                if ((mController->mButtons.mRapidInput &
+                     (TMarioGamePad::DPAD_RIGHT | TMarioGamePad::MAINSTICK_RIGHT))) {
+                    mDigitIndex = Min(mDigitIndex + 1, 9);
+                }
+
+                if ((mController->mButtons.mRapidInput &
+                     (TMarioGamePad::DPAD_LEFT | TMarioGamePad::MAINSTICK_LEFT))) {
+                    mDigitIndex = Max(mDigitIndex - 1, 10 - digits);
+                }
+
+                if ((mController->mButtons.mRapidInput &
+                     (TMarioGamePad::DPAD_UP | TMarioGamePad::MAINSTICK_UP))) {
+                    mValue[mDigitIndex] = (mValue[mDigitIndex] + 1) % 10;
+                }
+
+                if ((mController->mButtons.mRapidInput &
+                     (TMarioGamePad::DPAD_DOWN | TMarioGamePad::MAINSTICK_DOWN))) {
+                    mValue[mDigitIndex] = (mValue[mDigitIndex] + 9) % 10;
+                }
+            }
+
+            char intMaxBounds[10] = {};
+            char intMinBounds[10] = {};
+
+            // Populate the max bounds
+            for (int i = 9; i >= 0; --i) {
+                intMaxBounds[i] = maxVal % 10;
+                maxVal /= 10;
+            }
+
+            // Populate the min bounds
+            for (int i = 9; i >= 0; --i) {
+                intMinBounds[i] = minVal % 10;
+                minVal /= 10;
+            }
+
+            // Clamp by max bounds
+            {
+                bool isClamping = true;
+                for (int i = 10 - digits; i < 10 && isClamping; ++i) {
+                    // >= to capture the case where the value is already at the max
+                    if (mValue[i] >= intMaxBounds[i]) {
+                        mValue[i] = intMaxBounds[i];
+                    } else {
+                        isClamping = false;
+                    }
+                }
+            }
+
+            // Clamp by min bounds
+            {
+                bool isClamping = true;
+                for (int i = 10 - digits; i < 10 && isClamping; ++i) {
+                    // <= to capture the case where the value is already at the min
+                    if (mValue[i] <= intMinBounds[i]) {
+                        mValue[i] = intMinBounds[i];
+                    } else {
+                        isClamping = false;
+                    }
+                }
+            }
+
+            char intWidths[10] = {14, 11, 13, 14, 13, 13, 13, 13, 13, 13};
+
+            int width      = 0;
+            int totalWidth = 0;
+
+            for (int i = 10 - digits; i < mDigitIndex; ++i) {
+                width += intWidths[mValue[i]];
+                if ((i % 2) == 1) {
+                    width += 1;
+                }
+            }
+
+            for (int i = 10 - digits; i < 10; ++i) {
+                totalWidth += intWidths[mValue[i]];
+                if ((i % 2) == 1) {
+                    totalWidth += 1;
+                }
+            }
+
+            if (mIsNegative) {
+                width += 14;
+                totalWidth += 14;
+            }
+
+            int trueX = 200 - totalWidth / 2 + 2;
+            int ofsX  = width;
+
+            mDigitSelector->mRect.mX1 = trueX + ofsX;
+            mDigitSelector->mRect.mX2 = mDigitSelector->mRect.mX1 + mDigitSelector->mCharSizeX + 10;
+
+            char valueTextBuf[16] = {};
+            for (int i = 0; i < digits; ++i) {
+                valueTextBuf[i] = mValue[(10 - digits) + i] + '0';
+            }
+
+            mValueTextBox->setString(valueTextBuf);
+        }
+
+        void BetterSunshineEngineSettingsWidget::initializeContainer() {
+
+            mSettingTextBox = new J2DTextBox('name', {12, 16, 388, 40}, gpSystemFont->mFont, "",
+                                             J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Top);
+            {
+                mSettingTextBox->mStrPtr         = (char *)"UNKNOWN";
+                mSettingTextBox->mCharSizeX      = 21;
+                mSettingTextBox->mCharSizeY      = 24;
+                mSettingTextBox->mGradientTop    = {190, 20, 160, 255};
+                mSettingTextBox->mGradientBottom = {190, 20, 160, 255};
+            }
+            mSettingPane->mChildrenList.append(&mSettingTextBox->mPtrLink);
+
+            mValueTextBox = new J2DTextBox('valu', {12, 40, 388, 240}, gpSystemFont->mFont, "",
+                                           J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
+            {
+                mValueTextBox->mStrPtr         = (char *)"0000000000";
+                mValueTextBox->mCharSizeX      = 18;
+                mValueTextBox->mCharSizeY      = 21;
+                mValueTextBox->mGradientTop    = {255, 255, 255, 255};
+                mValueTextBox->mGradientBottom = {255, 255, 255, 255};
+            }
+            mSettingPane->mChildrenList.append(&mValueTextBox->mPtrLink);
+
+            mDigitSelector = new J2DTextBox('slct', {134, 150, 200, 180}, gpSystemFont->mFont, "",
+                                            J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Top);
+            {
+                mDigitSelector->mStrPtr         = (char *)"^";
+                mDigitSelector->mCharSizeX      = 18;
+                mDigitSelector->mCharSizeY      = 23;
+                mDigitSelector->mGradientTop    = {20, 220, 20, 255};
+                mDigitSelector->mGradientBottom = {20, 220, 20, 255};
+            }
+            mSettingPane->mChildrenList.append(&mDigitSelector->mPtrLink);
+        }
+
+        bool BetterSunshineEngineSettingsWidget::shouldAppear() {
+            return mSettingRef->getKind() == Settings::SingleSetting::ValueKind::INT;
+        }
+
+        void BetterSunshineEngineSettingsWidget::appear() {
+            SettingsWidget::appear();
+
+            mSettingTextBox->setString(mSettingRef->getName());
+
+            delete[] mValueTextBox->mStrPtr;
+            mValueTextBox->mStrPtr = new char[50];
+            mSettingRef->getValueName(mValueTextBox->mStrPtr);
+
+            mValueTextBox->mGradientTop    = {255, 255, 255, 255};
+            mValueTextBox->mGradientBottom = {255, 255, 255, 255};
+
+            int value = mSettingRef->getInt();
+
+            mIsNegative = value < 0;
+            mDigitIndex = 9;
+
+            int i = 9;
+
+            while (value > 0) {
+                mValue[i--] = value % 10;
+                value /= 10;
+            }
+
+            for (; i >= 0; --i) {
+                mValue[i] = 0;
+            }
+        }
+    }  // namespace Settings
+}  // namespace BetterSMS
 
 /* UNLOCK NOTIFICATION */
 
