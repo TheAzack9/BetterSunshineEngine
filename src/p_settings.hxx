@@ -587,8 +587,7 @@ public:
             char valueTextBuf[40];
             mCurrentSettingInfo->mSettingData->getValueName(valueTextBuf);
 
-            snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "%s: %s",
-                     mCurrentSettingInfo->mSettingData->getName(), valueTextBuf);
+            snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "[ %s ]", valueTextBuf);
         }
     }
 
@@ -667,8 +666,8 @@ private:
                     char valueTextBuf[40];
                     mCurrentSettingInfo->mSettingData->getValueName(valueTextBuf);
 
-                    snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "%s: %s",
-                             mCurrentSettingInfo->mSettingData->getName(), valueTextBuf);
+                    snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "[ %s ]",
+                             valueTextBuf);
                 }
             }
 
@@ -679,8 +678,8 @@ private:
                     char valueTextBuf[40];
                     mCurrentSettingInfo->mSettingData->getValueName(valueTextBuf);
 
-                    snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "%s: %s",
-                             mCurrentSettingInfo->mSettingData->getName(), valueTextBuf);
+                    snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "[ %s ]",
+                             valueTextBuf);
                 }
             }
         }
