@@ -1640,6 +1640,12 @@ namespace BetterSMS {
         }
 
         bool BetterSunshineEngineSettingsWidget::shouldAppear() {
+            if (mSettingRef->getKind() == Settings::SingleSetting::ValueKind::BOOL) {
+                mSettingRef->setBool(!mSettingRef->getBool());
+                mDirector->getSettingsScreen()->refreshCurrent();
+                return false;
+            }
+
             return mSettingRef->getKind() == Settings::SingleSetting::ValueKind::INT;
         }
 
