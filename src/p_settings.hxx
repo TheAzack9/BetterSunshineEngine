@@ -37,19 +37,6 @@ s32 ReadSavedSettings(Settings::SettingsGroup &group, CARDFileInfo *finfo);
 s32 CloseSavedSettings(const Settings::SettingsGroup &group, CARDFileInfo *finfo);
 s32 SaveAllSettings();
 
-const u8 SMS_ALIGN(32) gBricks[] = {
-    0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x01, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
-    0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0,
-    0x00, 0x00, 0x00, 0x00, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff,
-    0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0,
-    0x00, 0x00, 0x00, 0x00, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff,
-    0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0,
-    0x00, 0x00, 0x00, 0x00, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff,
-    0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0,
-    0x00, 0x00, 0x00, 0x00, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff,
-};
-
 const u8 SMS_ALIGN(32) gSaveBnr[] = {
     0x09, 0x00, 0x00, 0x60, 0x00, 0x20, 0x00, 0x00, 0x01, 0x02, 0x00, 0xd0, 0x00, 0x00, 0x0c, 0x20,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
@@ -587,7 +574,7 @@ public:
             char valueTextBuf[40];
             mCurrentSettingInfo->mSettingData->getValueName(valueTextBuf);
 
-            snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "[ %s ]", valueTextBuf);
+            snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "%s", valueTextBuf);
         }
     }
 
@@ -666,7 +653,7 @@ private:
                     char valueTextBuf[40];
                     mCurrentSettingInfo->mSettingData->getValueName(valueTextBuf);
 
-                    snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "[ %s ]",
+                    snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "%s",
                              valueTextBuf);
                 }
             }
@@ -678,7 +665,7 @@ private:
                     char valueTextBuf[40];
                     mCurrentSettingInfo->mSettingData->getValueName(valueTextBuf);
 
-                    snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "[ %s ]",
+                    snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "%s",
                              valueTextBuf);
                 }
             }
@@ -702,15 +689,16 @@ private:
                 mPrevHint->mIsVisible = mGroupID != 0;
                 mNextHint->mIsVisible = mGroupID != mGroups.size() - 1;
 
-                memset(mGameSettingsTitle->mStrPtr, 0, 100);
-                snprintf(mGameSettingsTitle->mStrPtr, 100, "Game Settings (%ld / %ld)",
-                         mGroupID + 1, mGroups.size());
-
                 mCurrentGroupInfo->mGroupPane->mIsVisible = false;
                 mCurrentGroupInfo                         = getGroupInfo(mGroupID);
-                memset(mGroupTitle->mStrPtr, 0, 100);
-                snprintf(mGroupTitle->mStrPtr, 100, "%s",
-                         Settings::getGroupName(*mCurrentGroupInfo->mSettingGroup));
+
+                char title[100];
+                memset(title, 0, sizeof(title));
+                snprintf(title, sizeof(title), "Game Settings (%ld / %ld)", mGroupID + 1,
+                         mGroups.size());
+                mGameSettingsTitle->setString(title);
+                mGroupTitle->setString(Settings::getGroupName(*mCurrentGroupInfo->mSettingGroup));
+
                 mCurrentGroupInfo->mGroupPane->mIsVisible = true;
 
                 // We intentionally loop past the end to get a nullptr

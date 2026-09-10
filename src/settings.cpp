@@ -785,6 +785,16 @@ void SettingsDirector::initializeDramaHierarchy() {
         stageObjGroup->mViewObjList.insert(stageObjGroup->mViewObjList.end(), group2DParticle);
     }
 
+    auto *groupGrad = new JDrama::TViewObjPtrListT<JDrama::TViewObj>("Group Grad");
+    {
+        mGradBG = new TSelectGrad("<TSelectGrad>");
+        mGradBG->setStageColor(1);
+
+        groupGrad->mViewObjList.insert(groupGrad->mViewObjList.end(), mGradBG);
+
+        rootObjGroup->mViewObjList.insert(rootObjGroup->mViewObjList.end(), groupGrad);
+    }
+
     {
         auto *stageDisp = new JDrama::TDStageDisp("<DStageDisp>", {0});
 
@@ -793,6 +803,20 @@ void SettingsDirector::initializeDramaHierarchy() {
 
         rootObjGroup->mViewObjList.insert(rootObjGroup->mViewObjList.end(), stageDisp);
         stageObjGroup->mViewObjList.insert(stageObjGroup->mViewObjList.end(), stageDisp);
+    }
+
+    {
+        auto *screen = new JDrama::TScreen(screenRect, "Screen Grad");
+
+        auto *orthoProj                = new JDrama::TOrthoProj();
+        orthoProj->mProjectionField[0] = -BetterSMS::getScreenRatioAdjustX();
+        orthoProj->mProjectionField[2] = 600.0f + BetterSMS::getScreenRatioAdjustX();
+        screen->assignCamera(orthoProj);
+
+        screen->assignViewObj(groupGrad);
+
+        rootObjGroup->mViewObjList.insert(rootObjGroup->mViewObjList.end(), screen);
+        stageObjGroup->mViewObjList.insert(stageObjGroup->mViewObjList.end(), screen);
     }
 
     {
@@ -830,28 +854,6 @@ void SettingsDirector::initializeSettingsLayout() {
     mSettingScreen->mScreen =
         new J2DScreen(8, 'ROOT', {0, 0, screenOrthoWidth, screenRenderHeight});
 
-    JUTTexture *bg_texture      = new JUTTexture();
-    bg_texture->mTexObj2.val[2] = 0;
-    bg_texture->storeTIMG(GetResourceTextureHeader(gBricks));
-    bg_texture->_50 = false;
-
-    *(u16 *)((u32)bg_texture + 0x3C) = 64;
-    *(u16 *)((u32)bg_texture + 0x3E) = 64;
-
-    J2DPicture *screenBackground =
-        new J2DPicture('snbg', {-screenAdjustX, 0, screenOrthoWidth, screenRenderHeight});
-
-    screenBackground->insert(bg_texture, 0, 1.0f);
-    screenBackground->mIsVisible    = true;
-    screenBackground->mBinding      = 10;
-    screenBackground->_134          = WrapRepeat;
-    screenBackground->_138          = WrapRepeat;
-    screenBackground->mRect         = {-screenAdjustX, 0, screenOrthoWidth, screenRenderHeight};
-    screenBackground->mAlpha        = 64;
-    screenBackground->mColorMask    = {0, 124, 141, 255};
-    screenBackground->mColorOverlay = {0, 0, 0, 255};
-    mSettingScreen->mScreen->mChildrenList.append(&screenBackground->mPtrLink);
-
     // Game settings
 
     int i = 0;
@@ -881,27 +883,27 @@ void SettingsDirector::initializeSettingsLayout() {
                 new J2DPane(19, ('q' << 24) | i, {0, 0, screenRenderWidth, screenRenderHeight});
 
             J2DTextBox *settingKeyText = new J2DTextBox(
-                ('t' << 24) | n, {20, 100 + (21 * ny), 300, 148 + (21 * ny)}, gpSystemFont->mFont,
+                ('t' << 24) | n, {80, 100 + (21 * ny), 300, 148 + (21 * ny)}, gpSystemFont->mFont,
                 "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
 
             J2DTextBox *settingKeyTextBehind = new J2DTextBox(
-                ('c' << 24) | n, {22, 102 + (21 * ny), 302, 150 + (21 * ny)}, gpSystemFont->mFont,
+                ('c' << 24) | n, {82, 102 + (21 * ny), 302, 150 + (21 * ny)}, gpSystemFont->mFont,
                 "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
 
             J2DTextBox *settingValueText = new J2DTextBox(
-                ('s' << 24) | n, {320, 100 + (21 * ny), 600, 148 + (21 * ny)}, gpSystemFont->mFont,
-                "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+                ('s' << 24) | n, {300, 100 + (21 * ny), 600, 148 + (21 * ny)}, gpSystemFont->mFont,
+                "", J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
 
             J2DTextBox *settingValueTextBehind = new J2DTextBox(
-                ('b' << 24) | n, {322, 102 + (21 * ny), 602, 150 + (21 * ny)}, gpSystemFont->mFont,
-                "", J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+                ('b' << 24) | n, {302, 102 + (21 * ny), 602, 150 + (21 * ny)}, gpSystemFont->mFont,
+                "", J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
             {
                 char valueTextbuf[40];
                 setting->getValueName(valueTextbuf);
 
                 char *settingValueTextBuf = new char[100];
                 memset(settingValueTextBuf, 0, 100);
-                snprintf(settingValueTextBuf, 100, "[ %s ]", valueTextbuf);
+                snprintf(settingValueTextBuf, 100, "%s", valueTextbuf);
 
                 char *settingKeyTextBuf = new char[100];
                 memset(settingKeyTextBuf, 0, 100);
@@ -1005,9 +1007,10 @@ void SettingsDirector::initializeSettingsLayout() {
         mSettingScreen->mScreen->mChildrenList.append(&maskTop->mPtrLink);
         mSettingScreen->mScreen->mChildrenList.append(&maskBottom->mPtrLink);
 
-        char *settingTextBuf = new char[100];
-        memset(settingTextBuf, 0, 100);
-        snprintf(settingTextBuf, 100, "Game Settings (1 / %ld)", settingsGroups.size());
+        char settingTextBuf[100];
+        memset(settingTextBuf, 0, sizeof(settingTextBuf));
+        snprintf(settingTextBuf, sizeof(settingTextBuf), "Game Settings (1 / %ld)",
+                 settingsGroups.size());
         mSettingScreen->mGameSettingsTitle =
             new J2DTextBox('logo', {0, -10, 600, 80}, gpSystemFont->mFont, settingTextBuf,
                            J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
@@ -1017,9 +1020,9 @@ void SettingsDirector::initializeSettingsLayout() {
         mSettingScreen->mScreen->mChildrenList.append(
             &mSettingScreen->mGameSettingsTitle->mPtrLink);
 
-        char *groupTitleTextBuf = new char[100];
-        memset(groupTitleTextBuf, 0, 100);
-        snprintf(groupTitleTextBuf, 100, "Super Mario Sunshine");
+        char groupTitleTextBuf[100];
+        memset(groupTitleTextBuf, 0, sizeof(groupTitleTextBuf));
+        snprintf(groupTitleTextBuf, sizeof(groupTitleTextBuf), "Super Mario Sunshine");
         mSettingScreen->mGroupTitle =
             new J2DTextBox('logo', {0, 20, 600, 110}, gpSystemFont->mFont, groupTitleTextBuf,
                            J2DTextBoxHBinding::Center, J2DTextBoxVBinding::Center);
