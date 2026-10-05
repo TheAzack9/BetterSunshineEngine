@@ -195,6 +195,7 @@ BETTER_SMS_FOR_CALLBACK void updateDeadTriggerState(TMario *player, bool isMario
     isAlive |= (player->mState == TMario::STATE_G_POUND);
     isAlive |= (player->mState == TMario::STATE_DIVE);
     isAlive |= (player->mState & TMario::STATE_WATERBORN);
+    isAlive |= (player->mState == 0x891 && SMS_isDivingMap__Fv());  // Helmet diving
     isAlive |= (player->mState == TMario::STATE_NPC_BOUNCE);
     isAlive |= (player->mState == 0x350 || player->mState == 0x351 || player->mState == 0x352 ||
                 player->mState == 0x353 || player->mState == 0x35B || player->mState == 0x35C ||

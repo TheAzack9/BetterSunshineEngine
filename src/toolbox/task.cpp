@@ -169,7 +169,7 @@ BETTER_SMS_FOR_CALLBACK void processCurrentTask(TApplication *app) {
                 }
             }
 
-            for (auto it = gpConductor->_10.begin(); it != gpConductor->_10.end(); ++it) {
+            for (auto it = gpConductor->mManagers.begin(); it != gpConductor->mManagers.end(); ++it) {
                 auto *obj_manager_ref = (TObjManager *)(*it);
                 for (size_t i = 0; i < obj_manager_ref->mObjCount; ++i) {
                     if (obj_manager_ref->mObjAry[i] == view_obj) {
