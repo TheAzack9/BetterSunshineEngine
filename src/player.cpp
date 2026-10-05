@@ -800,13 +800,13 @@ BETTER_SMS_FOR_CALLBACK void initMario(TMario *player, bool isMario) {
                 params->mMActor[5] =
                     createMActorForModel(anmData, player->mHandModel4R, framerate, "ma_hnd4r");
                 params->mMActor[6] =
-                    createMActorForModel(anmData, player->mCap->mCap1, framerate, "ma_cap1");
+                    createMActorForModel(anmData, player->mCap->mModels[0], framerate, "ma_cap1");
                 params->mMActor[7] =
-                    createMActorForModel(anmData, player->mCap->mCap3, framerate, "ma_cap3");
-                params->mMActor[8] = createMActorForModel(anmData, player->mCap->mDiverHelm,
+                    createMActorForModel(anmData, player->mCap->mModels[1], framerate, "ma_cap3");
+                params->mMActor[8] = createMActorForModel(anmData, player->mCap->mModels[2],
                                                           framerate, "diver_helm");
                 params->mMActor[9] =
-                    createMActorForModel(anmData, player->mCap->maGlass1, framerate, "ma_glass1");
+                    createMActorForModel(anmData, player->mCap->mModels[3], framerate, "ma_glass1");
 
             } else {
                 OSReport(
@@ -829,13 +829,13 @@ BETTER_SMS_FOR_CALLBACK void initMario(TMario *player, bool isMario) {
             replace__14TScreenTextureFP12J3DModelDataPCc(
                 *(u32 **)0x8040e0bc, player->mHandModel4R->mModelData, "H_kagemario_dummy");
             replace__14TScreenTextureFP12J3DModelDataPCc(
-                *(u32 **)0x8040e0bc, player->mCap->mCap1->mModelData, "H_kagemario_dummy");
+                *(u32 **)0x8040e0bc, player->mCap->mModels[0]->mModelData, "H_kagemario_dummy");
             replace__14TScreenTextureFP12J3DModelDataPCc(
-                *(u32 **)0x8040e0bc, player->mCap->mCap3->mModelData, "H_kagemario_dummy");
+                *(u32 **)0x8040e0bc, player->mCap->mModels[1]->mModelData, "H_kagemario_dummy");
             replace__14TScreenTextureFP12J3DModelDataPCc(
-                *(u32 **)0x8040e0bc, player->mCap->mDiverHelm->mModelData, "H_kagemario_dummy");
+                *(u32 **)0x8040e0bc, player->mCap->mModels[2]->mModelData, "H_kagemario_dummy");
             replace__14TScreenTextureFP12J3DModelDataPCc(
-                *(u32 **)0x8040e0bc, player->mCap->maGlass1->mModelData, "H_kagemario_dummy");
+                *(u32 **)0x8040e0bc, player->mCap->mModels[3]->mModelData, "H_kagemario_dummy");
         }
 
         initFludd(player, params);

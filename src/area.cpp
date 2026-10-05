@@ -111,7 +111,7 @@ BETTER_SMS_FOR_CALLBACK void initAreaInfo() {
             int size = JKRHeap::sRootHeap->getSize(customScenesBin);
             JSUMemoryInputStream memStream(customScenesBin, size);
             LevelNameRefGen data;
-            JDrama::TNameRefGen::instance = &data;
+            JDrama::TNameRefGen::setInstance(&data);
             data.load(memStream);
         } else {
             OSReport("[WARN] Could not find customStages.bin, will not add any custom stages.\n");
