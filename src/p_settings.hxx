@@ -476,7 +476,9 @@ private:
     void initializeDramaHierarchy();
     void initializeSettingsLayout();
     void initializeErrorLayout();
+    void initializeWidgetLayout(Settings::SettingsWidget *);
     void initializeSettingsWidgetLayouts(JDrama::TViewObjPtrListT<JDrama::TViewObj> *);
+    void processWidgetRequests();
     void saveSettings();
     void saveSettings_();
     void failSave(int errorcode);

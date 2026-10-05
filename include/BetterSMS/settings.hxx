@@ -5,6 +5,7 @@
 #include <Dolphin/types.h>
 
 #include <JSystem/J2D/J2DOrthoGraph.hxx>
+#include <JSystem/J2D/J2DScreen.hxx>
 #include <JSystem/JDrama/JDRActor.hxx>
 #include <JSystem/JDrama/JDRDirector.hxx>
 #include <JSystem/JDrama/JDRNameRef.hxx>
@@ -16,6 +17,9 @@
 #include <SMS/GC2D/GCConsole2.hxx>
 #include <SMS/GC2D/Guide.hxx>
 #include <SMS/GC2D/ShineFader.hxx>
+#include <SMS/G2D/BoundPane.hxx>
+#include <SMS/MarioUtil/DrawUtil.hxx>
+#include <SMS/MarioUtil/gd-reinit-gx.hxx>
 #include <SMS/MapObj/MapObjInit.hxx>
 #include <SMS/MoveBG/Coin.hxx>
 #include <SMS/MoveBG/DemoCannon.hxx>
@@ -26,6 +30,7 @@
 #include <SMS/System/MarDirector.hxx>
 #include <SMS/System/Params.hxx>
 #include <SMS/System/PerformList.hxx>
+#include <SMS/System/Resolution.hxx>
 #include <SMS/assert.h>
 
 #include "libs/global_list.hxx"
@@ -36,6 +41,7 @@ namespace BetterSMS {
     bool isCollisionRepaired();
     bool isCameraInvertedX();
     bool isCameraInvertedY();
+    int getScreenOrthoWidth();
 }  // namespace BetterSMS
 
 class SettingsScreen;
@@ -63,14 +69,29 @@ namespace BetterSMS {
         protected:
             SettingsWidget()
                 : TViewObj("<SettingsWidget>"), mSettingRef(nullptr), mAnimatedPane(nullptr),
-                  mDirector(nullptr), mController(nullptr), mScreen(nullptr), mSettingPane(nullptr),
-                  mDissapearing(false) {}
+                  mController(nullptr), mScreen(nullptr), mSettingPane(nullptr),
+                  mDissapearing(false), mRequests(REQUEST_NONE) {}
 
         public:
             friend class ::SettingsDirector;
-            virtual void initializeLayout(SettingsDirector *director, TMarioGamePad *controller);
 
-            virtual void perform(u32 flags, JDrama::TGraphics *graphics) override;
+            virtual void perform(u32 flags, JDrama::TGraphics *graphics) override {
+                if ((flags & 0x1)) {
+                    processInput();
+                }
+
+                if ((flags & 0x8)) {
+                    ReInitializeGX();
+                    SMS_DrawInit();
+
+                    J2DOrthoGraph ortho(0, 0, BetterSMS::getScreenOrthoWidth(),
+                                        SMSGetTitleRenderHeight());
+                    ortho.setup2D();
+
+                    mAnimatedPane->update();
+                    mScreen->draw(0, 0, &ortho);
+                }
+            }
 
             virtual bool isAnimating() const {
                 return mAnimatedPane->mActive == true &&
@@ -79,23 +100,40 @@ namespace BetterSMS {
             }
 
             virtual bool shouldAppear() = 0;
-            virtual void appear();
-            virtual void disappear();
+            virtual void appear() {
+                mAnimatedPane->setPanePosition(5, {100, 480}, {100, 200}, {100, 98});
+                mAnimatedPane->startAnimation();
+            }
+            virtual void disappear() {
+                mAnimatedPane->setPanePosition(5, {100, 98}, {100, 200}, {100, 480});
+                mAnimatedPane->startAnimation();
+            }
+
+            void refresh() { mRequests |= REQUEST_REFRESH; }
+            void unload() { mRequests |= REQUEST_UNLOAD; }
 
         protected:
             virtual void processInput()        = 0;
             virtual void initializeContainer() = 0;
 
-            SingleSetting *mSettingRef  = nullptr;
-            TBoundPane *mAnimatedPane   = nullptr;
-            SettingsDirector *mDirector = nullptr;
-            TMarioGamePad *mController  = nullptr;
-            J2DScreen *mScreen          = nullptr;
-            J2DPane *mSettingPane       = nullptr;
-            bool mDissapearing          = false;
+            SingleSetting *mSettingRef = nullptr;
+            TBoundPane *mAnimatedPane  = nullptr;
+            TMarioGamePad *mController = nullptr;
+            J2DScreen *mScreen         = nullptr;
+            J2DPane *mSettingPane      = nullptr;
+            bool mDissapearing         = false;
+
+        private:
+            enum Request : u8 {
+                REQUEST_NONE    = 0,
+                REQUEST_REFRESH = 1 << 0,
+                REQUEST_UNLOAD  = 1 << 1,
+            };
+
+            u8 mRequests;
         };
 
-        class BetterSunshineEngineSettingsWidget : SettingsWidget {
+        class BetterSunshineEngineSettingsWidget : public SettingsWidget {
         public:
             BetterSunshineEngineSettingsWidget() : SettingsWidget() {}
 
@@ -161,7 +199,7 @@ namespace BetterSMS {
             const char *getDescription() const { return mDescription; }
             void setDescription(const char *description) { mDescription = description; }
 
-            u8 getWidgetId() const { return 0; }
+            u8 getWidgetId() const { return mWidgetId; }
             void setWidgetId(u8 widgetId) { mWidgetId = widgetId; }
 
             void *getValue() const { return mValuePtr; }

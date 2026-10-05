@@ -591,6 +591,7 @@ s32 SettingsDirector::direct() {
     }
 
     TDirector::direct();
+    processWidgetRequests();
 
     switch (mState) {
     case State::INIT:
@@ -619,7 +620,9 @@ s32 SettingsDirector::direct() {
         if (mActiveWidget != nullptr) {
             mActiveWidget->mPerformFlags &= ~0b1011;  // Enable view and input
             if (mDisappearingWidget) {
+                mActiveWidget->mPerformFlags |= 0b0001;  // Keep input disabled while closing
                 if (!mActiveWidget->isAnimating()) {
+                    mActiveWidget->mPerformFlags |= 0b1011;
                     mState              = State::CONTROL;
                     mActiveWidget       = nullptr;
                     mDisappearingWidget = false;
@@ -693,6 +696,32 @@ bool SettingsDirector::unloadWidget() {
         return true;
     }
     return false;
+}
+
+void SettingsDirector::processWidgetRequests() {
+    bool shouldRefresh = false;
+    bool shouldUnload  = false;
+
+    for (int i = 0; i < 16; ++i) {
+        Settings::SettingsWidget *widget = mSettingsWidgets[i];
+        if (widget == nullptr)
+            continue;
+
+        const u8 requests = widget->mRequests;
+        widget->mRequests = Settings::SettingsWidget::REQUEST_NONE;
+
+        shouldRefresh |= (requests & Settings::SettingsWidget::REQUEST_REFRESH) != 0;
+        shouldUnload |= widget == mActiveWidget &&
+                        (requests & Settings::SettingsWidget::REQUEST_UNLOAD) != 0;
+    }
+
+    if (shouldRefresh) {
+        mSettingScreen->refreshCurrent();
+    }
+
+    if (shouldUnload && !mDisappearingWidget) {
+        unloadWidget();
+    }
 }
 
 void SettingsDirector::setup(JDrama::TDisplay *display, TMarioGamePad *controller) {
@@ -1199,6 +1228,65 @@ void SettingsDirector::initializeErrorLayout() {
     }
 }
 
+void SettingsDirector::initializeWidgetLayout(Settings::SettingsWidget *widget) {
+    widget->mController          = mController;
+    const int screenOrthoWidth   = BetterSMS::getScreenOrthoWidth();
+    const int screenRenderHeight = 480;
+
+    widget->mScreen =
+        new J2DScreen(8, 'ROOT', {0, 0, screenOrthoWidth, screenRenderHeight});
+    {
+        JUTTexture *mask      = new JUTTexture();
+        mask->mTexObj2.val[2] = 0;
+        mask->storeTIMG(GetResourceTextureHeader(gMaskBlack));
+        mask->_50 = false;
+
+        J2DPane *rootPane = new J2DPane(19, 'root', {0, 0, 400, 280});
+        widget->mScreen->mChildrenList.append(&rootPane->mPtrLink);
+
+        widget->mAnimatedPane        = new TBoundPane(rootPane, {0, 0, 400, 280});
+        widget->mAnimatedPane->mPane = rootPane;
+
+        J2DPicture *maskPanel = new J2DPicture('mask', {0, 0, 0, 0});
+        {
+            maskPanel->insert(mask, 0, 1.0f);
+            maskPanel->mRect            = {0, 0, 400, 280};
+            maskPanel->mAlpha           = 210;
+            maskPanel->mColorOverlay    = {0, 0, 0, 255};
+            maskPanel->mVertexColors[0] = {20, 0, 0, 255};
+            maskPanel->mVertexColors[1] = {20, 0, 0, 255};
+            maskPanel->mVertexColors[2] = {20, 0, 0, 255};
+            maskPanel->mVertexColors[3] = {20, 0, 0, 255};
+        }
+        rootPane->mChildrenList.append(&maskPanel->mPtrLink);
+
+        widget->mSettingPane             = new J2DPane(19, 'sett', {0, 0, 400, 280});
+        widget->mSettingPane->mIsVisible = true;
+        {
+            widget->initializeContainer();
+
+            J2DTextBox *cancelText =
+                new J2DTextBox('cncl', {20, 250, 380, 270}, gpSystemFont->mFont, "# Cancel",
+                               J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
+            {
+                cancelText->mCharSizeX = 21;
+                cancelText->mCharSizeY = 24;
+            }
+            widget->mSettingPane->mChildrenList.append(&cancelText->mPtrLink);
+
+            J2DTextBox *applyText =
+                new J2DTextBox('aply', {20, 250, 380, 270}, gpSystemFont->mFont, "@ Apply",
+                               J2DTextBoxHBinding::Right, J2DTextBoxVBinding::Center);
+            {
+                applyText->mCharSizeX = 21;
+                applyText->mCharSizeY = 24;
+            }
+            widget->mSettingPane->mChildrenList.append(&applyText->mPtrLink);
+        }
+        rootPane->mChildrenList.append(&widget->mSettingPane->mPtrLink);
+    }
+}
+
 void SettingsDirector::initializeSettingsWidgetLayouts(
     JDrama::TViewObjPtrListT<JDrama::TViewObj> *performList) {
 
@@ -1213,7 +1301,7 @@ void SettingsDirector::initializeSettingsWidgetLayouts(
     for (auto &group : settingsGroups) {
         for (auto &setting : group->getSettings()) {
             u8 widgetId = setting->getWidgetId();
-            if (widgetId > sWidgetCount) {
+            if (widgetId >= sWidgetCount) {
                 OSReport("Setting with invalid widget '%s', widgetId %d\n", setting->getName(),
                          widgetId);
                 continue;
@@ -1223,7 +1311,7 @@ void SettingsDirector::initializeSettingsWidgetLayouts(
                 continue;
 
             mSettingsWidgets[widgetId] = sWidgetsInit[widgetId]();
-            mSettingsWidgets[widgetId]->initializeLayout(this, mController);
+            initializeWidgetLayout(mSettingsWidgets[widgetId]);
             mSettingsWidgets[widgetId]->mPerformFlags |=
                 0b1011;  // Disable view and input by default
             performList->mViewObjList.insert(performList->mViewObjList.end(),
@@ -1334,99 +1422,6 @@ SMS_PATCH_BL(SMS_PORT_REGION(0x80299D0C, 0, 0, 0), checkForSettingsMenu);
 
 namespace BetterSMS {
     namespace Settings {
-
-        void SettingsWidget::initializeLayout(SettingsDirector *director,
-                                              TMarioGamePad *controller) {
-            mDirector                    = director;
-            mController                  = controller;
-            const int screenOrthoWidth   = BetterSMS::getScreenOrthoWidth();
-            const int screenRenderWidth  = BetterSMS::getScreenRenderWidth();
-            const int screenRenderHeight = 480;
-            const int screenAdjustX      = BetterSMS::getScreenRatioAdjustX();
-
-            mScreen = new J2DScreen(8, 'ROOT', {0, 0, screenOrthoWidth, screenRenderHeight});
-            {
-                JUTTexture *mask      = new JUTTexture();
-                mask->mTexObj2.val[2] = 0;
-                mask->storeTIMG(GetResourceTextureHeader(gMaskBlack));
-                mask->_50 = false;
-
-                J2DPane *rootPane = new J2DPane(19, 'root', {0, 0, 400, 280});
-                mScreen->mChildrenList.append(&rootPane->mPtrLink);
-
-                mAnimatedPane        = new TBoundPane(rootPane, {0, 0, 400, 280});
-                mAnimatedPane->mPane = rootPane;
-
-                J2DPicture *maskPanel = new J2DPicture('mask', {0, 0, 0, 0});
-                {
-                    maskPanel->insert(mask, 0, 1.0f);
-                    maskPanel->mRect            = {0, 0, 400, 280};
-                    maskPanel->mAlpha           = 210;
-                    maskPanel->mColorOverlay    = {0, 0, 0, 255};
-                    maskPanel->mVertexColors[0] = {20, 0, 0, 255};
-                    maskPanel->mVertexColors[1] = {20, 0, 0, 255};
-                    maskPanel->mVertexColors[2] = {20, 0, 0, 255};
-                    maskPanel->mVertexColors[3] = {20, 0, 0, 255};
-                }
-                rootPane->mChildrenList.append(&maskPanel->mPtrLink);
-
-                mSettingPane             = new J2DPane(19, 'sett', {0, 0, 400, 280});
-                mSettingPane->mIsVisible = true;
-                {
-                    initializeContainer();
-
-                    J2DTextBox *cancelText =
-                        new J2DTextBox('cncl', {20, 250, 380, 270}, gpSystemFont->mFont, "# Cancel",
-                                       J2DTextBoxHBinding::Left, J2DTextBoxVBinding::Center);
-                    {
-                        cancelText->mCharSizeX = 21;
-                        cancelText->mCharSizeY = 24;
-                    }
-                    mSettingPane->mChildrenList.append(&cancelText->mPtrLink);
-
-                    J2DTextBox *applyText =
-                        new J2DTextBox('aply', {20, 250, 380, 270}, gpSystemFont->mFont, "@ Apply",
-                                       J2DTextBoxHBinding::Right, J2DTextBoxVBinding::Center);
-                    {
-                        applyText->mCharSizeX = 21;
-                        applyText->mCharSizeY = 24;
-                    }
-                    mSettingPane->mChildrenList.append(&applyText->mPtrLink);
-                }
-                rootPane->mChildrenList.append(&mSettingPane->mPtrLink);
-            }
-        }
-
-        void SettingsWidget::perform(u32 flags, JDrama::TGraphics *graphics) {
-            if ((flags & 0x1)) {
-                processInput();
-            }
-
-            if ((flags & 0x8)) {
-                ReInitializeGX();
-                SMS_DrawInit();
-
-                J2DOrthoGraph ortho(0, 0, BetterSMS::getScreenOrthoWidth(),
-                                    SMSGetTitleRenderHeight());
-                ortho.setup2D();
-
-                mAnimatedPane->update();
-                mScreen->draw(0, 0, &ortho);
-            }
-        };
-
-        void SettingsWidget::appear() {
-            const s32 midX = getScreenRenderWidth() / 2;
-            mAnimatedPane->setPanePosition(5, {100, 480}, {100, 200}, {100, 98});
-            mAnimatedPane->startAnimation();
-        }
-
-        void SettingsWidget::disappear() {
-            const s32 midX = getScreenRenderWidth() / 2;
-            mAnimatedPane->setPanePosition(5, {100, 98}, {100, 200}, {100, 480});
-            mAnimatedPane->startAnimation();
-        }
-
         int BetterSunshineEngineSettingsWidget::buildValue() const {
             int value = 0;
             for (size_t i = 0; i < 10; ++i) {
@@ -1441,7 +1436,7 @@ namespace BetterSMS {
                 return;
 
             mSettingRef->setInt(buildValue());
-            mDirector->getSettingsScreen()->refreshCurrent();
+            refresh();
         }
 
         void BetterSunshineEngineSettingsWidget::perform(u32 flags, JDrama::TGraphics *graphics) {
@@ -1458,23 +1453,20 @@ namespace BetterSMS {
         }
 
         void BetterSunshineEngineSettingsWidget::processInput() {
-            if (mDirector->getState() != SettingsDirector::State::CONTROL_SETTING) {
-                return;
-            }
 
             if (mSettingRef->getKind() != Settings::SingleSetting::ValueKind::INT) {
-                mDirector->unloadWidget();
+                unload();
                 return;
             }
 
             Settings::IntSetting *intSetting = static_cast<Settings::IntSetting *>(mSettingRef);
 
             if ((mController->mButtons.mFrameInput & TMarioGamePad::A)) {
-                mDirector->unloadWidget();
+                unload();
                 applySetting();
                 return;
             } else if ((mController->mButtons.mFrameInput & TMarioGamePad::B)) {
-                mDirector->unloadWidget();
+                unload();
                 return;
             }
 
@@ -1645,7 +1637,7 @@ namespace BetterSMS {
         bool BetterSunshineEngineSettingsWidget::shouldAppear() {
             if (mSettingRef->getKind() == Settings::SingleSetting::ValueKind::BOOL) {
                 mSettingRef->setBool(!mSettingRef->getBool());
-                mDirector->getSettingsScreen()->refreshCurrent();
+                refresh();
                 return false;
             }
 
@@ -1759,7 +1751,7 @@ checkForUnlockedSettings(const Settings::SettingsGroup &group,
             }
         }
 
-        bool isSettingAccessible = setting->isUnlocked() && setting->isUserEditable();
+        bool isSettingAccessible = setting->isUnlocked();
 
         if (info == nullptr) {
             sNewUnlockMap.push_back({setting->getName(), isSettingAccessible});

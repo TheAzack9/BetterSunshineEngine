@@ -53,6 +53,20 @@ Settings::SwitchSetting gCameraInvertXSetting("Invert Camera X", &sCameraInvertX
 Settings::SwitchSetting gCameraInvertYSetting("Invert Camera Y", &sCameraInvertY);
 SavePromptsSetting gSavePromptSetting("Save Prompts");
 
+static bool padding = false;
+Settings::SwitchSetting padding1("padding1", &padding);
+Settings::SwitchSetting padding2("padding2", &padding);
+Settings::SwitchSetting padding3("padding3", &padding);
+Settings::SwitchSetting padding4("padding4", &padding);
+Settings::SwitchSetting padding5("padding5", &padding);
+Settings::SwitchSetting padding6("padding6", &padding);
+Settings::SwitchSetting padding7("padding7", &padding);
+Settings::SwitchSetting padding8("padding8", &padding);
+Settings::SwitchSetting padding9("padding9", &padding);
+Settings::SwitchSetting padding10("padding10", &padding);
+Settings::SwitchSetting padding11("padding11", &padding);
+Settings::SwitchSetting padding12("padding12", &padding);
+
 FirstBootSetting gFirstBootSetting;
 
 static BetterSMS::ModuleInfo sBetterSMSInfo{"Better Sunshine Engine", 1, 2, &sSettingsGroup};
@@ -214,6 +228,10 @@ extern void patches_staticResetter(TMarDirector *);
 extern void initializeTaskBuffers();
 extern void processCurrentTask(TApplication *app);
 
+BETTER_SMS_FOR_CALLBACK Settings::SettingsWidget *initializeSettingsWidget() {
+    return (Settings::SettingsWidget *)new Settings::BetterSunshineEngineSettingsWidget();
+}
+
 // ================================= //
 
 #ifdef __cplusplus
@@ -241,6 +259,8 @@ static void initLib() {
 
     // SETTINGS
     {
+        Settings::registerWidget(initializeSettingsWidget);
+
         sSettingsGroup.addSetting(&gBugFixesSetting);
         sSettingsGroup.addSetting(&gExploitFixesSetting);
         sSettingsGroup.addSetting(&gCollisionFixesSetting);
@@ -252,6 +272,18 @@ static void initLib() {
         sSettingsGroup.addSetting(&gCameraInvertYSetting);
         sSettingsGroup.addSetting(&gSavePromptSetting);
         sSettingsGroup.addSetting(&gFirstBootSetting);
+        sSettingsGroup.addSetting(&padding1);
+        sSettingsGroup.addSetting(&padding2);
+        sSettingsGroup.addSetting(&padding3);
+        sSettingsGroup.addSetting(&padding4);
+        sSettingsGroup.addSetting(&padding5);
+        sSettingsGroup.addSetting(&padding6);
+        sSettingsGroup.addSetting(&padding7);
+        sSettingsGroup.addSetting(&padding8);
+        sSettingsGroup.addSetting(&padding9);
+        sSettingsGroup.addSetting(&padding10);
+        sSettingsGroup.addSetting(&padding11);
+        sSettingsGroup.addSetting(&padding12);
 
         auto &saveInfo        = sSettingsGroup.getSaveInfo();
         saveInfo.mSaveName    = Settings::getGroupName(sSettingsGroup);
@@ -429,6 +461,10 @@ KURIBO_MODULE_BEGIN(BETTER_SMS_MODULE_NAME, BETTER_SMS_AUTHOR_NAME, BETTER_SMS_V
         KURIBO_EXPORT_AS(BetterSMS::isCameraInvertedX, "isCameraInvertedX__9BetterSMSFv");
         KURIBO_EXPORT_AS(BetterSMS::isCameraInvertedY, "isCameraInvertedY__9BetterSMSFv");
 
+        KURIBO_EXPORT_AS(
+            BetterSMS::Settings::registerWidget,
+            "registerWidget__Q29BetterSMS8SettingsFPFv_PQ39BetterSMS8Settings14SettingsWidget");
+
         // Hack for circular reference
         KURIBO_EXPORT_AS(
             BetterSMS::Settings::getGroupName,
@@ -595,6 +631,11 @@ KURIBO_MODULE_BEGIN(BETTER_SMS_MODULE_NAME, BETTER_SMS_AUTHOR_NAME, BETTER_SMS_V
                          "addChangeCallback__Q29BetterSMS4GameFPFP12TApplication_v");
 
         /* STAGE */
+        KURIBO_EXPORT_AS(BetterSMS::Stage::getShineAreaInfos,
+                         "getShineAreaInfos__Q29BetterSMS5StageFv");
+        KURIBO_EXPORT_AS(BetterSMS::Stage::getNormalAreaInfos,
+                         "getNormalAreaInfos__Q29BetterSMS5StageFv");
+        KURIBO_EXPORT_AS(BetterSMS::Stage::getExAreaInfos, "getExAreaInfos__Q29BetterSMS5StageFv");
         KURIBO_EXPORT_AS(
             BetterSMS::Stage::registerShineStage,
             "registerShineStage__Q29BetterSMS5StageFPQ39BetterSMS5Stage13ShineAreaInfo");
