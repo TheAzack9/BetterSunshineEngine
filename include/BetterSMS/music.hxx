@@ -47,13 +47,15 @@ namespace BetterSMS {
         constexpr size_t AudioQueueSize          = 4;
         constexpr size_t AudioStackSize          = 0x4000;
         constexpr u8 AudioVolumeDefault          = 127;
-        #if 0
-        constexpr size_t AudioInterruptRate         = 14300;  // 32kHz, granular for stupid reasons
-        #else
-        constexpr size_t AudioInterruptRate         = 2000;
-        #endif
-        constexpr size_t AudioPreparePreOffset   = 0x8000;
-        constexpr OSTime AudioFadeInterval       = 16;  // 16ms
+
+
+        //constexpr size_t AudioInterruptRateNintendont = 14336;  // 32kHz, granular for stupid reasons
+        constexpr size_t AudioInterruptRateNintendont =
+            0x6200;  // ((21504 / 8) * 14 * 2) / 3
+        constexpr size_t AudioInterruptRateNative     = 2000;
+
+        constexpr size_t AudioPreparePreOffset = 0x8000;
+        constexpr OSTime AudioFadeInterval     = 16;  // 16ms
 
         struct AudioPacket {
             union Identifier {
@@ -63,8 +65,7 @@ namespace BetterSMS {
 
             struct PacketParams : public TParams {
                 PacketParams()
-                    : TParams(), SMS_TPARAM_INIT(mLoopStart, -1),
-                      SMS_TPARAM_INIT(mLoopEnd, -1) {}
+                    : TParams(), SMS_TPARAM_INIT(mLoopStart, -1), SMS_TPARAM_INIT(mLoopEnd, -1) {}
 
                 TParamT<s32> mLoopStart;
                 TParamT<s32> mLoopEnd;
@@ -185,6 +186,8 @@ namespace BetterSMS {
 
             bool canPlayNextTrack() const;
 
+            u32 selectInterruptRate() const;
+
             static void cbForVolumeAlarm(OSAlarm *alarm, OSContext *context);
             static void cbForAIInterrupt(u32 trigger);
             static void cbForGetStreamErrorStatusAsync_(u32 result, DVDCommandBlock *cmdBlock);
@@ -199,6 +202,8 @@ namespace BetterSMS {
             OSAlarm mVolumeFadeAlarm;
             OSMessageQueue mMessageQueue;
             OSMessage mMessageList[AudioMessageQueueSize];
+
+        public:
             DVDFileInfo *mAudioHandle;
             mutable DVDCommandBlock mAIInteruptBlock;
             mutable DVDCommandBlock mRunBlock;
@@ -208,6 +213,8 @@ namespace BetterSMS {
             mutable DVDCommandBlock mStopBlock;
             mutable DVDCommandBlock mPlayAddrBlock;
             mutable DVDCommandBlock mCanPlayBlock;
+
+        protected:
             u8 *mAudioStack;
             u32 mStreamPos;
             u32 mStreamEnd;

@@ -13,6 +13,7 @@
 #include "cstd/ctype.h"
 #include "cstd/stdlib.h"
 #include "debug.hxx"
+#include "fps.hxx"
 #include "game.hxx"
 #include "libs/optional.hxx"
 #include "loading.hxx"
@@ -183,8 +184,9 @@ extern void initStreamInfo(TApplication *app);
 extern void printStreamInfo(TApplication *app, const J2DOrthoGraph *graph);
 
 // GRAPHICS
-extern void updateFPS(TMarDirector *);
-extern void updateGammaSetting(TApplication *);
+extern void updateFPS(TApplication *);
+extern void resetGammaSetting(TApplication *);
+extern void updateGammaSetting(TMarDirector *);
 
 // LOADING SCREEN
 extern void initLoadingScreen();
@@ -234,6 +236,7 @@ static void initLib() {
     initializeTaskBuffers();
 
     // Toolbox Listener
+    Game::addBootCallback(processCurrentTask);
     Game::addLoopCallback(processCurrentTask);
 
     // SETTINGS
@@ -370,9 +373,9 @@ static void initLib() {
     Stage::addInitCallback(resetPlayerDatas);
     Stage::addInitCallback(initializeMapObjWave);
 
-    Stage::addInitCallback(updateFPS);
-    Stage::addUpdateCallback(updateFPS);
-    Game::addLoopCallback(updateGammaSetting);
+    Game::addLoopCallback(updateFPS);
+    Stage::addExitCallback(resetGammaSetting);
+    Stage::addUpdateCallback(updateGammaSetting);
 
     // SETTINGS
     Game::addBootCallback(initUnlockedSettings);
@@ -401,6 +404,7 @@ KURIBO_MODULE_BEGIN(BETTER_SMS_MODULE_NAME, BETTER_SMS_AUTHOR_NAME, BETTER_SMS_V
         KURIBO_EXPORT_AS(BetterSMS::registerModule,
                          "registerModule__9BetterSMSFRCQ29BetterSMS10ModuleInfo");
         KURIBO_EXPORT_AS(BetterSMS::isGameEmulated, "isGameEmulated__9BetterSMSFv");
+        KURIBO_EXPORT_AS(BetterSMS::isWiiMode, "isWiiMode__9BetterSMSFv");
         KURIBO_EXPORT_AS(BetterSMS::isMusicBeingStreamed, "isMusicBeingStreamed__9BetterSMSFv");
         KURIBO_EXPORT_AS(BetterSMS::isMusicStreamingAllowed,
                          "isMusicStreamingAllowed__9BetterSMSFv");
@@ -472,6 +476,12 @@ KURIBO_MODULE_BEGIN(BETTER_SMS_MODULE_NAME, BETTER_SMS_AUTHOR_NAME, BETTER_SMS_V
         KURIBO_EXPORT_AS(
             BetterSMS::Debug::addDrawCallback,
             "addDrawCallback__Q29BetterSMS5DebugFPFP12TApplicationPC13J2DOrthoGraph_v");
+
+        /* FPS */
+        KURIBO_EXPORT_AS(BetterSMS::FPS::setSMSFaderFrameRate,
+                         "setSMSFaderFrameRate__Q29BetterSMS3FPSFf");
+        KURIBO_EXPORT_AS(BetterSMS::FPS::setShineSelectFrameRate,
+                         "setShineSelectFrameRate__Q29BetterSMS3FPSFf");
 
         /* MEMORY */
         KURIBO_EXPORT_AS(BetterSMS::Memory::malloc, "malloc__Q29BetterSMS6MemoryFUlUl");

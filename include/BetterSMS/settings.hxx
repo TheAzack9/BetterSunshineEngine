@@ -40,7 +40,6 @@ namespace BetterSMS {
 
 namespace BetterSMS {
 
-
     struct ModuleInfo;
 
     namespace Settings {
@@ -134,6 +133,7 @@ namespace BetterSMS {
                     "Mismatching setting types found, setting a non FLOAT to FLOAT value!");
                 float cur = f;
                 float old = *reinterpret_cast<float *>(mValuePtr);
+                OSReport("Setting %s to %f\n", mName, cur);
                 if (old != cur) {
                     *reinterpret_cast<float *>(mValuePtr) = cur;
                     if (mValueChangedCB) {
@@ -195,7 +195,11 @@ namespace BetterSMS {
         public:
             IntSetting() = delete;
             IntSetting(const char *name, void *valuePtr)
-                : SingleSetting(name, valuePtr), mValueRange() {}
+                : SingleSetting(name, valuePtr) {
+                mValueRange.mStart = -2147483647;
+                mValueRange.mStop  = 2147483647;
+                mValueRange.mStep  = 1;
+            }
             ~IntSetting() override {}
 
             ValueKind getKind() const override { return ValueKind::INT; }
@@ -239,7 +243,11 @@ namespace BetterSMS {
         public:
             FloatSetting() = delete;
             FloatSetting(const char *name, void *valuePtr)
-                : SingleSetting(name, valuePtr), mValueRange() {}
+                : SingleSetting(name, valuePtr) {
+                mValueRange.mStart = -3.40282347e+38f;
+                mValueRange.mStop  = 3.40282347e+38f;
+                mValueRange.mStep  = 1.0f;
+            }
             ~FloatSetting() override {}
 
             ValueKind getKind() const override { return ValueKind::FLOAT; }

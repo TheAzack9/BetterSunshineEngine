@@ -23,7 +23,6 @@
 
 using namespace BetterSMS;
 
-
 static void normalizeHoverSlopeSpeed(f32 floorPos) {
     TMario *player;
     SMS_FROM_GPR(22, player);
@@ -200,10 +199,30 @@ BETTER_SMS_FOR_CALLBACK void updateDeadTriggerState(TMario *player, bool isMario
     isAlive |= (player->mState == 0x350 || player->mState == 0x351 || player->mState == 0x352 ||
                 player->mState == 0x353 || player->mState == 0x35B || player->mState == 0x35C ||
                 player->mState == 0x10000357 || player->mState == 0x10000358);  // Ropes
-    isAlive |= (player->mState == 0x10100341);  // Pole Climb
-    isAlive |= (player->mState & 0x30000000) != 0;  // Ladder climbs
-    isAlive |= (player->mState == 0x200349 || player->mState == 0x20054A);  // Roof climbs
+    isAlive |= (player->mState == 0x10100341);                                  // Pole Climb
+    isAlive |= (player->mState & 0x30000000) != 0;                              // Ladder climbs
+    isAlive |= (player->mState == 0x200349 || player->mState == 0x20054A);      // Roof climbs
     playerData->setCanSprayFludd(isAlive);
 }
+
+static bool shouldRenderTalkBalloon(u16 *messageEntry) {
+    TGCConsole2 *console;
+    SMS_FROM_GPR(28, console);
+
+    u16 unk  = *(u16 *)((u8 *)console + 0x3F4);
+    u16 unk2 = messageEntry[2];
+    if (unk2 <= unk) {
+        return false;
+    }
+
+    if (!gpMarioAddress->mAttributes.mHasFludd) {
+        return false;
+    }
+
+    return true;
+}
+SMS_PATCH_BL(SMS_PORT_REGION(0x8014A21C, 0, 0, 0), shouldRenderTalkBalloon);
+SMS_WRITE_32(SMS_PORT_REGION(0x8014A220, 0, 0, 0), 0x2c030000);
+SMS_WRITE_32(SMS_PORT_REGION(0x8014A224, 0, 0, 0), 0x4082000c);
 
 #undef SCALE_PARAM

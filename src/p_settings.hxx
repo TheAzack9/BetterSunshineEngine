@@ -429,13 +429,24 @@ struct GroupInfo {
 };
 
 class SettingsScreen;
+class IntSettingPanel;
 class SaveErrorPanel;
 
 class SettingsDirector : public JDrama::TDirector {
-    enum class State { INIT, CONTROL, SAVE_START, SAVE_BUSY, SAVE_SUCCESS, SAVE_FAIL, EXIT };
+    enum class State {
+        INIT,
+        CONTROL,
+        CONTROL_SETTING,
+        SAVE_START,
+        SAVE_BUSY,
+        SAVE_SUCCESS,
+        SAVE_FAIL,
+        EXIT
+    };
 
 public:
     friend class SettingsScreen;
+    friend class IntSettingPanel;
     friend class SaveErrorPanel;
 
     SettingsDirector()
@@ -445,12 +456,21 @@ public:
     s32 direct() override;
     void setup(JDrama::TDisplay *, TMarioGamePad *);
 
+    enum class Control {
+        SETTINGS,
+        INT_SETTING,
+        SAVE_ERROR,
+    };
+
+    bool switchToControl(Control);
+
 private:
     s32 exit();
     void initialize();
     void initializeDramaHierarchy();
     void initializeSettingsLayout();
     void initializeErrorLayout();
+    void initializeIntSettingLayout();
     void saveSettings();
     void saveSettings_();
     void failSave(int errorcode);
@@ -465,6 +485,7 @@ private:
     JDrama::TDisplay *mDisplay;
     TMarioGamePad *mController;
     SettingsScreen *mSettingScreen;
+    IntSettingPanel *mIntSettingPanel;
     SaveErrorPanel *mSaveErrorPanel;
     TSelectGrad *mGradBG;
 };
@@ -538,8 +559,27 @@ public:
         }
     }
 
+    void refreshCurrent() {
+        if (mCurrentSettingInfo && mCurrentSettingInfo->mSettingData->isUserEditable()) {
+            char valueTextBuf[40];
+            mCurrentSettingInfo->mSettingData->getValueName(valueTextBuf);
+
+            snprintf(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, "%s: %s",
+                     mCurrentSettingInfo->mSettingData->getName(), valueTextBuf);
+        }
+    }
+
 private:
     void processInput() {
+        if (mDirector->mState != SettingsDirector::State::CONTROL) {
+            return;
+        }
+
+        if ((mController->mButtons.mFrameInput & TMarioGamePad::A)) {
+            mDirector->switchToControl(SettingsDirector::Control::INT_SETTING);
+            return;
+        }
+
         {
             auto currentID = mSettingID;
 
@@ -621,6 +661,10 @@ private:
                 }
             }
         }
+
+        if ((mController->mButtons.mFrameInput & TMarioGamePad::B)) {
+            mDirector->mState = SettingsDirector::State::SAVE_START;
+        }
     }
 
     GroupInfo *getGroupInfo(u32 index) {
@@ -640,6 +684,7 @@ private:
     s32 mGroupID;
     s32 mSettingID;
     TMarioGamePad *mController;
+    SettingsDirector *mDirector;
     J2DScreen *mScreen;
     J2DPicture *mShineIcon;
     J2DTextBox *mCurrentTextBox;
@@ -649,6 +694,279 @@ private:
     TGlobalVector<GroupInfo *> mGroups;
 };
 
+class IntSettingPanel : public JDrama::TViewObj {
+public:
+    friend class SettingsDirector;
+
+    IntSettingPanel(SettingsDirector *director, TMarioGamePad *controller)
+        : TViewObj("<IntSettingPanel>"), mDigitIndex(0), mDirector(director), mScreen(nullptr),
+          mSettingPane(nullptr), mSettingTextBox(nullptr), mValueTextBox(nullptr),
+          mController(controller) {}
+
+    ~IntSettingPanel() override {}
+
+    void perform(u32 flags, JDrama::TGraphics *graphics) override {
+        if ((flags & 0x1)) {
+            processInput();
+        }
+
+        if ((flags & 0x3)) {
+            if (mSettingRef && buildValue() != mSettingRef->getInt()) {
+                mValueTextBox->mGradientTop    = {180, 230, 10, 255};
+                mValueTextBox->mGradientBottom = {240, 170, 10, 255};
+            } else {
+                mValueTextBox->mGradientTop    = {255, 255, 255, 255};
+                mValueTextBox->mGradientBottom = {255, 255, 255, 255};
+            }
+        }
+
+        if ((flags & 0x8)) {
+            ReInitializeGX();
+            SMS_DrawInit();
+
+            J2DOrthoGraph ortho(0, 0, BetterSMS::getScreenOrthoWidth(), SMSGetTitleRenderHeight());
+            ortho.setup2D();
+
+            mAnimatedPane->update();
+            mScreen->draw(0, 0, &ortho);
+        }
+    }
+
+    bool isAnimating() const { return mAnimatedPane->mActive == true && isRectInterpolating(); }
+
+    void appear() {
+        const s32 midX = getScreenRenderWidth() / 2;
+        mAnimatedPane->setPanePosition(5, {100, 480}, {100, 200}, {100, 98});
+        mAnimatedPane->startAnimation();
+    }
+
+    void disappear() {
+        const s32 midX = getScreenRenderWidth() / 2;
+        mAnimatedPane->setPanePosition(5, {100, 98}, {100, 200}, {100, 480});
+        mAnimatedPane->startAnimation();
+    }
+
+    void applySetting() {
+        if (!mSettingRef)
+            return;
+
+        mSettingRef->setInt(buildValue());
+        mDirector->mSettingScreen->refreshCurrent();
+    }
+
+    void digestSetting(Settings::SingleSetting *setting) {
+        mSettingRef = setting;
+
+        if (!setting) {
+            mSettingTextBox->setString("");
+            mValueTextBox->setString("");
+            return;
+        }
+
+        mSettingTextBox->setString(setting->getName());
+
+        delete[] mValueTextBox->mStrPtr;
+        mValueTextBox->mStrPtr = new char[50];
+        mSettingRef->getValueName(mValueTextBox->mStrPtr);
+
+        mValueTextBox->mGradientTop    = {255, 255, 255, 255};
+        mValueTextBox->mGradientBottom = {255, 255, 255, 255};
+
+        int value = setting->getInt();
+
+        mIsNegative = value < 0;
+        mDigitIndex = 9;
+
+        int i       = 9;
+
+        while (value > 0) {
+            mValue[i--] = value % 10;
+            value /= 10;
+        }
+
+        for (; i >= 0; --i) {
+            mValue[i] = 0;
+        }
+    }
+
+private:
+    bool isRectInterpolating() const {
+        return mAnimatedPane->mCurrentInterpolate > 0.0f &&
+               mAnimatedPane->mCurrentInterpolate < 1.0f;
+    }
+
+    void processInput() {
+        if (mDirector->mState != SettingsDirector::State::CONTROL_SETTING) {
+            return;
+        }
+
+        if (mSettingRef->getKind() != Settings::SingleSetting::ValueKind::INT) {
+            mDirector->switchToControl(SettingsDirector::Control::SETTINGS);
+            return;
+        }
+
+        Settings::IntSetting *intSetting = static_cast<Settings::IntSetting *>(mSettingRef);
+
+        if ((mController->mButtons.mFrameInput & TMarioGamePad::A)) {
+            mDirector->switchToControl(SettingsDirector::Control::SETTINGS);
+            applySetting();
+            return;
+        } else if ((mController->mButtons.mFrameInput & TMarioGamePad::B)) {
+            mDirector->switchToControl(SettingsDirector::Control::SETTINGS);
+            return;
+        }
+
+        // Calculate the bounds for each digit
+        // based on value range of setting.
+        const Settings::ValueRange<int> &range = intSetting->getValueRange();
+        int minVal                             = range.mStart;
+        int maxVal                             = range.mStop;
+
+        int maxDigits = 0;
+        int maxValCpy = maxVal;
+        for (int i = 0; i < 10; ++i) {
+            if (maxValCpy > 0) {
+                maxValCpy /= 10;
+                maxDigits++;
+            }
+        }
+
+        int minDigits = 0;
+        int minValCpy = minVal;
+        for (int i = 0; i < 10; ++i) {
+            if (minValCpy > 0) {
+                minValCpy /= 10;
+                minDigits++;
+            }
+        }
+
+        int digits = Max(maxDigits, minDigits);
+
+        // Process input
+        {
+            if ((mController->mButtons.mRapidInput &
+                 (TMarioGamePad::DPAD_RIGHT | TMarioGamePad::MAINSTICK_RIGHT))) {
+                mDigitIndex = Min(mDigitIndex + 1, 9);
+            }
+
+            if ((mController->mButtons.mRapidInput &
+                 (TMarioGamePad::DPAD_LEFT | TMarioGamePad::MAINSTICK_LEFT))) {
+                mDigitIndex = Max(mDigitIndex - 1, 10 - digits);
+            }
+
+            if ((mController->mButtons.mRapidInput &
+                 (TMarioGamePad::DPAD_UP | TMarioGamePad::MAINSTICK_UP))) {
+                mValue[mDigitIndex] = (mValue[mDigitIndex] + 1) % 10;
+            }
+
+            if ((mController->mButtons.mRapidInput &
+                 (TMarioGamePad::DPAD_DOWN | TMarioGamePad::MAINSTICK_DOWN))) {
+                mValue[mDigitIndex] = (mValue[mDigitIndex] + 9) % 10;
+            }
+        }
+
+        char intMaxBounds[10] = {};
+        char intMinBounds[10] = {};
+
+        // Populate the max bounds
+        for (int i = 9; i >= 0; --i) {
+            intMaxBounds[i] = maxVal % 10;
+            maxVal /= 10;
+        }
+
+        // Populate the min bounds
+        for (int i = 9; i >= 0; --i) {
+            intMinBounds[i] = minVal % 10;
+            minVal /= 10;
+        }
+
+        // Clamp by max bounds
+        {
+            bool isClamping = true;
+            for (int i = 10 - digits; i < 10 && isClamping; ++i) {
+                // >= to capture the case where the value is already at the max
+                if (mValue[i] >= intMaxBounds[i]) {
+                    mValue[i] = intMaxBounds[i];
+                } else {
+                    isClamping = false;
+                }
+            }
+        }
+
+        // Clamp by min bounds
+        {
+            bool isClamping = true;
+            for (int i = 10 - digits; i < 10 && isClamping; ++i) {
+                // <= to capture the case where the value is already at the min
+                if (mValue[i] <= intMinBounds[i]) {
+                    mValue[i] = intMinBounds[i];
+                } else {
+                    isClamping = false;
+                }
+            }
+        }
+
+        char intWidths[10] = {14, 11, 13, 14, 13, 13, 13, 13, 13, 13};
+
+        int width      = 0;
+        int totalWidth = 0;
+
+        for (int i = 10 - digits; i < mDigitIndex; ++i) {
+            width += intWidths[mValue[i]];
+            if ((i % 2) == 1) {
+                width += 1;
+            }
+        }
+
+        for (int i = 10 - digits; i < 10; ++i) {
+            totalWidth += intWidths[mValue[i]];
+            if ((i % 2) == 1) {
+                totalWidth += 1;
+            }
+        }
+
+        if (mIsNegative) {
+            width += 14;
+            totalWidth += 14;
+        }
+
+        int trueX = 200 - totalWidth / 2 + 2;
+        int ofsX  = width;
+
+        mDigitSelector->mRect.mX1 = trueX + ofsX;
+        mDigitSelector->mRect.mX2 = mDigitSelector->mRect.mX1 + mDigitSelector->mCharSizeX + 10;
+
+        char valueTextBuf[16] = {};
+        for (int i = 0; i < digits; ++i) {
+            valueTextBuf[i] = mValue[(10 - digits) + i] + '0';
+        }
+
+        mValueTextBox->setString(valueTextBuf);
+    }
+
+    int buildValue() const {
+        int value = 0;
+        for (size_t i = 0; i < 10; ++i) {
+            value *= 10;
+            value += mValue[i];
+        }
+        return value * (mIsNegative ? -1 : 1);
+    }
+
+    s32 mDigitIndex                      = 9;
+    s8 mValue[10]                        = {};
+    bool mIsNegative                     = false;
+    TBoundPane *mAnimatedPane            = nullptr;
+    SettingsDirector *mDirector          = nullptr;
+    TMarioGamePad *mController           = nullptr;
+    J2DScreen *mScreen                   = nullptr;
+    J2DPane *mSettingPane                = nullptr;
+    J2DTextBox *mSettingTextBox          = nullptr;
+    J2DTextBox *mValueTextBox            = nullptr;
+    J2DTextBox *mDigitSelector           = nullptr;
+    Settings::SingleSetting *mSettingRef = nullptr;
+};
+
 class SaveErrorPanel : public JDrama::TViewObj {
 public:
     friend class SettingsDirector;
@@ -656,7 +974,7 @@ public:
     enum Choice { NO, YES };
 
     SaveErrorPanel(SettingsDirector *director, TMarioGamePad *controller)
-        : TViewObj("<SettingsScreen>"), mChoice(0), mWhichScreen(0), mDirector(director),
+        : TViewObj("<SaveErrorPanel>"), mChoice(0), mWhichScreen(0), mDirector(director),
           mScreen(nullptr), mErrorHandlerPane(nullptr), mSaveTryingPane(nullptr),
           mErrorTextBox(nullptr), mChoiceBoxes(), mController(controller) {}
 
@@ -921,8 +1239,15 @@ class GammaSetting final : public Settings::FloatSetting {
 public:
     GammaSetting(const char *name) : FloatSetting(name, &mGammaValue), mGammaValue(1.0f) {
         mValueRange = {0.5f, 2.0f, 0.1f};
+        mValueChangedCB = GammaSetting::valueChangedCB;
     }
     ~GammaSetting() override {}
+
+    static void valueChangedCB(void *old, void *cur, ValueKind kind) {
+        OSReport("GammaSetting::valueChangedCB\n");
+        *((u8 *)gpApplication.mDisplay + 0x42) = static_cast<u8>(8.0001f * *(float *)cur);
+        *((u8 *)gpApplication.mDisplay + 0x43) = static_cast<u8>(8.0001f * *(float *)cur);
+    }
 
     void getValueName(char *dst) const override { snprintf(dst, 100, "%.1f", mGammaValue); }
 

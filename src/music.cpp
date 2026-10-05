@@ -144,8 +144,7 @@ void AudioStreamer::initializeSubsystem() {
     AIInit(0);
 
     AISetStreamSampleRate(AI_SAMPLE_48K);
-    AIResetStreamSampleCount();
-    AISetStreamTrigger(Music::AudioInterruptRate);
+    AISetStreamTrigger(selectInterruptRate());
 
     AISetStreamVolLeft(0);
     AISetStreamVolRight(0);
@@ -486,6 +485,32 @@ void BetterSMS::Music::AudioStreamer::clear_() {
     mRequestedClear = true;
 }
 
+static JAISound *GetJAISoundForMusic(u32 id) {
+    JAISound **unk = (JAISound **)search__19JALListS_5(id & 0x3FF); 
+    return unk ? unk[0x14 / 4] : nullptr;
+}
+
+static JAISound *GetJAISoundForBGMHandle(u32 handle) {
+    u32 *bgm = (u32 *)MSBgm::getHandle(handle);
+    return bgm ? GetJAISoundForMusic(bgm[2]) : nullptr;
+}
+
+static f32 GetJAISoundSeInterVolume(JAISound *sound, u8 channel) {
+    if (sound->_1 == 3) {
+        u32 *param = sound->getSeParameter();
+        return ((f32 *)(param))[(0x118 / 4) + channel * 4];
+    }
+    return 0.0f;
+}
+
+static bool IsBGMActive(u32 handle) {
+    JAISound *sound = GetJAISoundForBGMHandle(handle);
+    if (!sound) {
+        return false;
+    }
+    return GetJAISoundSeInterVolume(sound, 0) > 0.001f;
+}
+
 SMS_NO_INLINE void AudioStreamer::update_() {
     // Check if pause menu is active to mute music
     bool isGamePaused = false;
@@ -508,7 +533,7 @@ SMS_NO_INLINE void AudioStreamer::update_() {
 
     if (!isGamePaused && isPlaying()) {
         // Automatically fade music in/out based on event sequenced track
-        if (MSBgm::getHandle(0) || MSBgm::getHandle(1) || MSBgm::getHandle(2)) {
+        if (IsBGMActive(0) || IsBGMActive(1) || IsBGMActive(2)) {
             if (!isPaused() && isPlaying()) {
                 _mDelayedTime = PauseFadeSpeed;
                 pause_();
@@ -601,12 +626,6 @@ SMS_NO_INLINE bool AudioStreamer::startLowStream() {
     if (!DVDOpen(adpPath, mAudioHandle))
         return false;
 
-    AISetStreamVolLeft(_mVolLeft);
-    AISetStreamVolRight(_mVolRight);
-    AIResetStreamSampleCount();
-    AISetStreamTrigger(Music::AudioInterruptRate);
-    AISetStreamPlayState(true);
-
     DVDPrepareStreamAsync(mAudioHandle, getLoopEnd(), 0, AudioStreamer::cbForPrepareStreamAsync_);
     mStreamEnd = getLoopEnd() - AudioPreparePreOffset;
     mStreamPos = 0;
@@ -641,8 +660,15 @@ SMS_NO_INLINE bool AudioStreamer::stopLowStream() {
     return DVDCancelStreamAsync(&mStopBlock, AudioStreamer::cbForCancelStreamOnStopAsync_);
 }
 
-bool BetterSMS::Music::AudioStreamer::canPlayNextTrack() const {
+bool AudioStreamer::canPlayNextTrack() const {
     return mPlayNextTrack && mErrorStatus == 0;
+}
+
+u32 AudioStreamer::selectInterruptRate() const {
+    if (BetterSMS::isWiiMode() && !BetterSMS::isGameEmulated()) {
+        return AudioInterruptRateNintendont;
+    }
+    return AudioInterruptRateNative;
 }
 
 void AudioPacket::setLoopPoint(s32 start, s32 end) {
@@ -667,8 +693,7 @@ SMS_NO_INLINE void AudioStreamer::cbForVolumeAlarm(OSAlarm *alarm, OSContext *co
 
 SMS_NO_INLINE void AudioStreamer::cbForAIInterrupt(u32 trigger) {
     AudioStreamer *streamer = AudioStreamer::getInstance();
-    // streamer->mStreamPos    = trigger * (48000.0f / AudioStreamRate);
-    AISetStreamTrigger(trigger + Music::AudioInterruptRate);
+    AISetStreamTrigger(trigger + streamer->selectInterruptRate());
     DVDGetStreamPlayAddrAsync(&streamer->mAIInteruptBlock,
                               AudioStreamer::cbForGetStreamPlayAddrAsync_);
 }
@@ -717,6 +742,13 @@ SMS_NO_INLINE void AudioStreamer::cbForGetStreamPlayAddrAsync_(u32 result,
 
 SMS_NO_INLINE void AudioStreamer::cbForPrepareStreamAsync_(u32 result, DVDFileInfo *finfo) {
     AudioStreamer *streamer = AudioStreamer::getInstance();
+
+    AISetStreamVolLeft(streamer->_mVolLeft);
+    AISetStreamVolRight(streamer->_mVolRight);
+    AIResetStreamSampleCount();
+    AISetStreamTrigger(streamer->selectInterruptRate());
+    AISetStreamPlayState(true);
+
     DVDStopStreamAtEndAsync(&streamer->mPrepareBlock, AudioStreamer::cbForStopStreamAtEndAsync_);
     _mIsPlaying = true;
     _mIsPaused  = false;
@@ -740,7 +772,7 @@ SMS_NO_INLINE void AudioStreamer::cbForCancelStreamOnSeekAsync_(u32 result,
                                                                 DVDCommandBlock *callback) {
     AudioStreamer *streamer = AudioStreamer::getInstance();
     AIResetStreamSampleCount();
-    AISetStreamTrigger(Music::AudioInterruptRate);
+    AISetStreamTrigger(streamer->selectInterruptRate());
     DVDPrepareStreamAsync(streamer->mAudioHandle, streamer->getLoopEnd() - streamer->mStreamPos,
                           streamer->mStreamPos, AudioStreamer::cbForPrepareStreamAsync_);
 }
@@ -1012,7 +1044,7 @@ static void stopMusicOnGameOver(u32 musicID) {
         streamer->pause(PauseFadeSpeed);
 
     MSBgm::startBGM(musicID);
-}
+} 
 SMS_PATCH_BL(SMS_PORT_REGION(0x802988B0, 0x80290748, 0, 0), stopMusicOnGameOver);
 
 BETTER_SMS_FOR_CALLBACK void stopMusicOnExitStage(TApplication *app) {

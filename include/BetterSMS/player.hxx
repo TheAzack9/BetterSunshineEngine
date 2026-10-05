@@ -91,9 +91,13 @@ namespace BetterSMS {
                   SMS_TPARAM_INIT(mCanUseFludd, true), SMS_TPARAM_INIT(mPlayerHasHelmet, false),
                   SMS_TPARAM_INIT(mPlayerHasGlasses, false),
                   SMS_TPARAM_INIT(mPlayerHasShirt, false),
+                  SMS_TPARAM_INIT(mCanHoldNPCs, false),
                   SMS_TPARAM_INIT(mThrowPowerMultiplier, 1.0f),
                   SMS_TPARAM_INIT(mUnderwaterHealthMultiplier, 1.0f),
-                  SMS_TPARAM_INIT(mFallDamageMinMultiplier, 1.0f) {
+                  SMS_TPARAM_INIT(mFallDamageMinMultiplier, 1.0f),
+                  SMS_TPARAM_INIT(mHasMActor, false),
+                  SMS_TPARAM_INIT(mMActorFramerate, 1.0f),
+                  SMS_TPARAM_INIT(mHasScreenTexture, false) {
                 load("/Mario/better_sms.prm");
             }
 
@@ -105,9 +109,13 @@ namespace BetterSMS {
             TParamRT<bool> mPlayerHasHelmet;
             TParamRT<bool> mPlayerHasGlasses;
             TParamRT<bool> mPlayerHasShirt;
+            TParamRT<bool> mCanHoldNPCs;
             TParamRT<f32> mThrowPowerMultiplier;
             TParamRT<f32> mUnderwaterHealthMultiplier;
             TParamRT<f32> mFallDamageMinMultiplier;
+            TParamRT<bool> mHasMActor;
+            TParamRT<f32> mMActorFramerate;
+            TParamRT<bool> mHasScreenTexture;
         };
 
         class TPlayerData {
@@ -231,6 +239,9 @@ namespace BetterSMS {
             FluddHistory mFluddHistory;
             ParamHistory mDefaultAttrs;
             TMario::TDirtyParams mDefaultDirtyParams;
+
+            MActorAnmData* mMActorAnmData;
+            MActor* mMActor[10];
 
             TVec3f mWarpDestination;
             s32 mWarpTimer;
